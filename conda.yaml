@@ -1,0 +1,13 @@
+name: ml-playgronud
+channels:
+  - defaults
+  - pytorch
+  - conda-forge
+  - nvidia
+dependencies:
+  - python=3.8
+  - pytorch::pytorch=2.2.2
+  - pytorch::torchvision=0.17.2
+  - pytorch-cuda=12.1
+  - tqdm
+
