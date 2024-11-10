@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 import torch.nn as nn
 
@@ -16,7 +17,7 @@ class Encoder(nn.Module):
 
         self.training = True
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         h_ = self.LeakyReLU(self.FC_input(x))
         h_ = self.LeakyReLU(self.FC_input2(h_))
         mean = self.FC_mean(h_)
@@ -56,7 +57,7 @@ class Model(nn.Module):
         z = mean + var * epsilon  # reparameterization trick
         return z
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mean, log_var = self.encoder(x)
         z = self.reparameterization(
             mean, torch.exp(0.5 * log_var)

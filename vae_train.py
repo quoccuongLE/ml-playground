@@ -8,7 +8,15 @@ from torch.optim import Adam
 from models.vae import Encoder, Decoder, Model as VAE
 from datasets.mnist import train_loader
 
-from configs.vae_config import x_dim, hidden_dim, latent_dim, lr, epochs
+from configs.vae_config import (
+    x_dim,
+    hidden_dim,
+    latent_dim,
+    lr,
+    epochs,
+    weight_path,
+    batch_size,
+)
 
 # Model Hyperparameters
 cuda = True
@@ -65,3 +73,4 @@ for epoch in range(epochs):
     )
 
 print("Finish!!")
+torch.save(model.state_dict(), weight_path)
