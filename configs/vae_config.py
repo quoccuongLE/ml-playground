@@ -1,11 +1,16 @@
-dataset_path = "~/datasets"
-batch_size = 100
-train_batch_size = 100
-test_batch_size = 1
-x_dim = 784
-hidden_dim = 400
-latent_dim = 200
-lr = 1e-3
-epochs = 30
+import math
 
-weight_path = "tmp/weights/vae.pt"
+dataset_path = "~/datasets"
+batch_size_ref = 128
+multiplier = 4
+train_batch_size = batch_size_ref * multiplier
+test_batch_size = 1
+x_dim = 784 # 28*28
+hidden_dim = 512
+latent_dim = 2
+depth = 3
+lr = 1e-3 / math.sqrt(multiplier)
+epochs = 120
+# 90 - 134
+# 120 - 133
+weight_path = "tmp/weights/vae_120.pth"

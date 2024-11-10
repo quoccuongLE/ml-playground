@@ -2,7 +2,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 
-from configs.vae_config import train_batch_size, test_batch_size, batch_size, dataset_path
+from configs.vae_config import train_batch_size, test_batch_size, dataset_path
 
 
 mnist_transform = transforms.Compose(
@@ -21,7 +21,11 @@ test_dataset = MNIST(
 )
 
 train_loader = DataLoader(
-    dataset=train_dataset, batch_size=batch_size, shuffle=True, **kwargs
+    dataset=train_dataset,
+    batch_size=train_batch_size,
+    shuffle=True,
+    drop_last=True,
+    **kwargs
 )
 test_loader = DataLoader(
     dataset=test_dataset, batch_size=test_batch_size, shuffle=False, **kwargs

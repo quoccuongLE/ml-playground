@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torchvision.utils import make_grid, save_image
 from tqdm import tqdm
+import torch.optim.lr_scheduler as lr_scheduler
 from torch.optim import Adam
 
 from models.vae import Encoder, Decoder, Model as VAE
@@ -15,27 +16,20 @@ from configs.vae_config import (
     lr,
     epochs,
     weight_path,
-    batch_size,
+    train_batch_size,
 )
 
 # Model Hyperparameters
 cuda = True
-_device = torch.device("cuda" if cuda else "cpu")
-batch_size = 100
-x_dim = 784
-hidden_dim = 400
-latent_dim = 200
-lr = 1e-3
-epochs = 30
+device = torch.device("cuda" if cuda else "cpu")
 
 # Model definition
 encoder = Encoder(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
 decoder = Decoder(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim)
-model = VAE(encoder=encoder, decoder=decoder, device=_device).to(_device)
+model = VAE(encoder=encoder, decoder=decoder, device=device).to(device)
 
 
 # Loss function
-# BCE_loss = nn.BCELoss()
 def loss_function(x, x_hat, mean, log_var):
     reproduction_loss = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
     KLD = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
@@ -44,6 +38,9 @@ def loss_function(x, x_hat, mean, log_var):
 
 
 optimizer = Adam(model.parameters(), lr=lr)
+# scheduler = lr_scheduler.LinearLR(
+#     optimizer, start_factor=1.0, end_factor=0.1, total_iters=45
+# )
 print("Start training VAE...")
 model.train()
 
@@ -51,25 +48,28 @@ model.train()
 for epoch in range(epochs):
     overall_loss = 0
     for batch_idx, (x, _) in enumerate(train_loader):
-        x = x.view(batch_size, x_dim)
-        x = x.to(_device)
+        x = x.view(train_batch_size, x_dim)
+        x = x.to(device)
 
         optimizer.zero_grad()
 
         x_hat, mean, log_var = model(x)
         loss = loss_function(x, x_hat, mean, log_var)
 
-        overall_loss += loss.item()
+        overall_loss += loss.item() / train_loader.batch_size
 
         loss.backward()
         optimizer.step()
+    # scheduler.step()
 
     print(
         "\tEpoch",
         epoch + 1,
         "complete!",
+        "\t LR=",
+        optimizer.param_groups[0]["lr"],
         "\tAverage Loss: ",
-        overall_loss / (batch_idx * batch_size),
+        overall_loss / (batch_idx + 1),
     )
 
 print("Finish!!")
