@@ -47,7 +47,7 @@ model.train()
 # Train loop
 for epoch in range(epochs):
     overall_loss = 0
-    for batch_idx, (x, _) in enumerate(train_loader):
+    for batch_idx, (x, y) in enumerate(train_loader):
         x = x.view(train_batch_size, x_dim)
         x = x.to(device)
 

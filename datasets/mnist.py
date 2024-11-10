@@ -28,5 +28,9 @@ train_loader = DataLoader(
     **kwargs
 )
 test_loader = DataLoader(
-    dataset=test_dataset, batch_size=test_batch_size, shuffle=False, **kwargs
+    dataset=test_dataset,
+    batch_size=test_batch_size,
+    shuffle=True,
+    drop_last=True,
+    **kwargs
 )
