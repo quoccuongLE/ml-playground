@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union
 import torch
 import torch.nn as nn
 
@@ -55,13 +55,38 @@ class Decoder(nn.Module):
         return x_hat
 
 
-class Model(nn.Module):
+class VariationalAutoEncoder(nn.Module):
 
-    def __init__(self, encoder: nn.Module, decoder: nn.Module, device: str):
-        super(Model, self).__init__()
+    def __init__(
+        self,
+        encoder: Union[nn.Module, dict],
+        decoder: Union[nn.Module, dict],
+        device: str,
+    ):
+        super(VariationalAutoEncoder, self).__init__()
         self.device = device
-        self.encoder = encoder
-        self.decoder = decoder
+        if isinstance(encoder, nn.Module):
+            self.encoder = encoder
+        elif isinstance(encoder, dict):
+            self.encoder = Encoder(
+                input_dim=encoder["input_dim"],
+                hidden_dim=encoder["hidden_dim"],
+                latent_dim=encoder["latent_dim"],
+                depth=encoder["depth"],
+            )
+        else:
+            raise TypeError(f"Unsupported type {type(encoder)}!")
+        if isinstance(decoder, nn.Module):
+            self.decoder = decoder
+        elif isinstance(decoder, dict):
+            self.decoder = Decoder(
+                latent_dim=decoder["latent_dim"],
+                hidden_dim=decoder["hidden_dim"],
+                output_dim=decoder["output_dim"],
+                depth=decoder["depth"],
+            )
+        else:
+            raise TypeError(f"Unsupported type {type(decoder)}!")
 
     def reparameterization(self, mean, var):
         epsilon = torch.randn_like(var).to(self.device)  # sampling epsilon

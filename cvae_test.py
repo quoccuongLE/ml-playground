@@ -4,26 +4,41 @@ import torch
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from configs.vae_config import (hidden_dim, latent_dim, test_batch_size,
-                                weight_path, x_dim)
+from configs.vae_config import (
+    hidden_dim,
+    latent_dim,
+    test_batch_size,
+    weight_path,
+    x_dim,
+)
 from datasets.mnist import test_loader
-from models.vae import Decoder, Encoder
-from models.vae import VariationalAutoEncoder as VAE
+from torch.utils.data import DataLoader
+from models.cvae import CVAE
+
+import torch.nn.functional as F
 
 batch_size = 1
+weight_path = "tmp/weights/cvae_120.pth"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def plot_latent(autoencoder, data_loader, num_batches=100):
+def plot_latent(
+    autoencoder: torch.nn.Module,
+    data_loader: DataLoader,
+    num_batches: int = 100,
+    num_classes: int = 10,
+):
     for i, (x, y) in enumerate(data_loader):
         x = x.view(test_batch_size, x_dim)
-        z = autoencoder.encoder(x.to(device))
+        x = x.to(device)
+        enc_label = F.one_hot(y, num_classes=num_classes)
+        z = autoencoder.encoder(torch.cat((x, enc_label.to(device)), dim=1))
         z = z[0].to("cpu").detach().numpy()
         plt.scatter(z[:, 0], z[:, 1], c=y, cmap="tab10")
         if i > num_batches:
             break
     plt.colorbar()
-    plt.savefig("tmp/latent_embeddings.png")
+    plt.savefig("tmp/latent_embeddings_cvae.png")
 
 
 def plot_reconstructed(autoencoder, r0=(-5, 10), r1=(-10, 5), n=12):
@@ -42,31 +57,13 @@ def plot_reconstructed(autoencoder, r0=(-5, 10), r1=(-10, 5), n=12):
 
 
 # Model definition
-encoder = Encoder(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
-decoder = Decoder(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim)
-model = VAE(encoder=encoder, decoder=decoder, device=device)
+encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+model = CVAE(encoder=encoder, decoder=decoder, device=device, num_classes=10).to(device)
 
 model.load_state_dict(torch.load(weight_path, weights_only=True))
 model.to(torch.device(device))
 model.eval()
 
-with torch.no_grad():
-    for batch_idx, (x, _) in enumerate(tqdm(test_loader)):
-        x = x.view(test_loader.batch_size, x_dim)
-        x = x.to(device)
-        x_hat, _, _ = model(x)
-        break
-
-with torch.no_grad():
-    noise = torch.randn(1, latent_dim).to(device)
-    generated_images = model.decoder(noise)
-
-
-save_image(generated_images.view(batch_size, 1, 28, 28), "tmp/generated_sample_2.png")
-
-
 # Latent embeddings
 plot_latent(model, test_loader)
-
-# Reconstructed images
-plot_reconstructed(model, r0=(-3, 3), r1=(-3, 3))

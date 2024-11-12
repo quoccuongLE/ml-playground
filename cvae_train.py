@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 
-from models.vae import Encoder, Decoder, VariationalAutoEncoder as VAE
+from models.cvae import CVAE
 from datasets.mnist import train_loader
 
 from configs.vae_config import (
@@ -16,13 +16,13 @@ from configs.vae_config import (
 )
 
 # Model Hyperparameters
-cuda = True
-device = torch.device("cuda" if cuda else "cpu")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+weight_path = "tmp/weights/cvae_120.pth"
 
 # Model definition
-encoder = Encoder(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
-decoder = Decoder(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim)
-model = VAE(encoder=encoder, decoder=decoder, device=device).to(device)
+encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+model = CVAE(encoder=encoder, decoder=decoder, device=device, num_classes=10).to(device)
 
 
 # Loss function
@@ -37,7 +37,7 @@ optimizer = Adam(model.parameters(), lr=lr)
 # scheduler = lr_scheduler.LinearLR(
 #     optimizer, start_factor=1.0, end_factor=0.1, total_iters=45
 # )
-print("Start training VAE...")
+print("Start training C-VAE...")
 model.train()
 
 # Train loop
@@ -46,10 +46,11 @@ for epoch in range(epochs):
     for batch_idx, (x, y) in enumerate(train_loader):
         x = x.view(train_batch_size, x_dim)
         x = x.to(device)
+        y = y.to(device)
 
         optimizer.zero_grad()
 
-        x_hat, mean, log_var = model(x)
+        x_hat, mean, log_var = model(x, y)
         loss = loss_function(x, x_hat, mean, log_var)
 
         overall_loss += loss.item() / train_loader.batch_size
