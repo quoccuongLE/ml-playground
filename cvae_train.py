@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 
-from models.cvae import CVAE
+from models.cvae_001 import CVAECase1 as CVAE
 from datasets.mnist import train_loader
 
 from configs.vae_config import (
@@ -17,7 +17,7 @@ from configs.vae_config import (
 
 # Model Hyperparameters
 device = "cuda" if torch.cuda.is_available() else "cpu"
-weight_path = "tmp/weights/cvae_120.pth"
+weight_path = "tmp/weights/cvae_120_case1.pth"
 
 # Model definition
 encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
@@ -57,7 +57,6 @@ for epoch in range(epochs):
 
         loss.backward()
         optimizer.step()
-    # scheduler.step()
 
     print(
         "\tEpoch",

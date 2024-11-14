@@ -6,7 +6,7 @@ from .vae import VariationalAutoEncoder
 import torch.nn.functional as F
 
 
-class CVAE(VariationalAutoEncoder):
+class CVAECase2(VariationalAutoEncoder):
 
     def __init__(
         self,
@@ -17,10 +17,18 @@ class CVAE(VariationalAutoEncoder):
     ):
         # if isinstance(encoder, dict):
         #     encoder["input_dim"] += num_classes
-        if isinstance(decoder, dict):
-            decoder["latent_dim"] += num_classes
-        super(CVAE, self).__init__(encoder, decoder, device=device)
+        # if isinstance(decoder, dict):
+        #     decoder["latent_dim"] += num_classes
+        super().__init__(encoder, decoder, device=device)
         self.num_classes = num_classes
+        self.label_projector = nn.Sequential(
+            nn.Linear(num_classes, decoder["latent_dim"]),
+            nn.LeakyReLU(0.2),
+        )
+
+    def condition_on_label(self, z, y):
+        projected_label = self.label_projector(y.float())
+        return z + projected_label
 
     def forward(
         self, x: torch.Tensor, y: torch.Tensor
@@ -31,7 +39,9 @@ class CVAE(VariationalAutoEncoder):
         z = self.reparameterization(
             mean, torch.exp(0.5 * log_var)
         )  # takes exponential function (log var -> var)
+        # x_hat = self.decoder(torch.cat((z, dec_label), dim=1))
         dec_label = F.one_hot(y, num_classes=self.num_classes)
-        x_hat = self.decoder(torch.cat((z, dec_label), dim=1))
+        _z = self.condition_on_label(z, dec_label)
+        x_hat = self.decoder(_z)
 
         return x_hat, mean, log_var
