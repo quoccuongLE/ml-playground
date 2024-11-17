@@ -7,9 +7,9 @@ import torch.nn.functional as F
 
 
 class CVAE(VariationalAutoEncoder):
-    """Conditional VAE: z and y are independent
+    """Conditional VAE 1: z and y are independent
     - y controls what number will be generated
-    - x controls everything else (styles, etc.)
+    - z controls everything else (styles, etc.)
     Graphical model: (z) -> (x) and (y) -> (x)
 
     Structure:

@@ -1,8 +1,9 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import Adam
 
-from models.vae import Encoder, Decoder, VariationalAutoEncoder as VAE
+from models.cvae_002 import CVAE
 from datasets.mnist import train_loader
 
 from configs.vae_config import (
@@ -16,29 +17,25 @@ from configs.vae_config import (
 )
 
 # Model Hyperparameters
-cuda = True
-device = torch.device("cuda" if cuda else "cpu")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+weight_path = "tmp/weights/cvae_120_case2.pth"
 
 # Model definition
-encoder = Encoder(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
-decoder = Decoder(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim)
-model = VAE(encoder=encoder, decoder=decoder, device=device).to(device)
+encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=5)
+decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+model = CVAE(encoder=encoder, decoder=decoder, device=device, num_classes=10).to(device)
 
-
-# Loss function
-# https://statproofbook.github.io/P/mvn-dent
-def loss_function(x, x_hat, mean, log_var):
+def loss_function(x, x_hat, mean, log_var, mean_per_labels):
     reproduction_loss = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-    KLD = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
+    KLD = -0.5 * torch.sum(
+        1 + log_var - log_var.exp() - (mean - mean_per_labels).pow(2)
+    )
 
     return reproduction_loss + KLD
 
 
 optimizer = Adam(model.parameters(), lr=lr)
-# scheduler = lr_scheduler.LinearLR(
-#     optimizer, start_factor=1.0, end_factor=0.1, total_iters=45
-# )
-print("Start training VAE...")
+print("Start training C-VAE...")
 model.train()
 
 # Train loop
@@ -47,17 +44,18 @@ for epoch in range(epochs):
     for batch_idx, (x, y) in enumerate(train_loader):
         x = x.view(train_batch_size, x_dim)
         x = x.to(device)
+        y = y.to(device)
 
         optimizer.zero_grad()
 
-        x_hat, mean, log_var = model(x)
-        loss = loss_function(x, x_hat, mean, log_var)
+        x_hat, mean, log_var = model(x, y)
+        mean_per_labels = model.means[y]
+        loss = loss_function(x, x_hat, mean, log_var, mean_per_labels)
 
         overall_loss += loss.item() / train_loader.batch_size
 
         loss.backward()
         optimizer.step()
-    # scheduler.step()
 
     print(
         "\tEpoch",

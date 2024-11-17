@@ -13,12 +13,12 @@ from configs.vae_config import (
 )
 from datasets.mnist import test_loader
 from torch.utils.data import DataLoader
-from models.cvae_001 import CVAECase1 as CVAE
+from models.cvae_002 import CVAE
 
 import torch.nn.functional as F
 
 batch_size = 1
-weight_path = "tmp/weights/cvae_120_case1.pth"
+weight_path = "tmp/weights/cvae_120_case2.pth"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -38,7 +38,7 @@ def plot_latent(
         if i > num_batches:
             break
     plt.colorbar()
-    plt.savefig("tmp/latent_embeddings_cvae.png")
+    plt.savefig("latent_embeddings_cvae_case2.png")
 
 
 def plot_reconstructed(autoencoder, r0=(-5, 10), r1=(-10, 5), n=12):
@@ -57,7 +57,7 @@ def plot_reconstructed(autoencoder, r0=(-5, 10), r1=(-10, 5), n=12):
 
 
 # Model definition
-encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=5)
 decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
 model = CVAE(encoder=encoder, decoder=decoder, device=device, num_classes=10).to(device)
 
@@ -68,9 +68,9 @@ model.eval()
 # Latent embeddings
 plot_latent(model, test_loader)
 
-with torch.no_grad():
-    z = torch.randn(1, latent_dim).to(device)
-    dec_label = F.one_hot(torch.tensor([4]).to(torch.int64).cuda(), num_classes=model.num_classes)
-    generated_images = model.decoder(torch.cat((z, dec_label), dim=1))
+# with torch.no_grad():
+#     z = torch.randn(1, latent_dim).to(device)
+#     dec_label = F.one_hot(torch.tensor([4]).to(torch.int64).cuda(), num_classes=model.num_classes)
+#     generated_images = model.decoder(torch.cat((z, dec_label), dim=1))
 
-save_image(generated_images.view(batch_size, 1, 28, 28), "tmp/generated_sample_cvae_002_.png")
+# save_image(generated_images.view(batch_size, 1, 28, 28), "tmp/generated_sample_cvae_001.png")
