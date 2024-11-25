@@ -13,7 +13,7 @@ from configs.vae_config import (
 )
 from datasets.mnist import test_loader
 from torch.utils.data import DataLoader
-from models.cvae_001 import CVAECase1 as CVAE
+from models.cvae import CVAE
 
 import torch.nn.functional as F
 

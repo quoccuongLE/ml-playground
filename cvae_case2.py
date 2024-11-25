@@ -13,12 +13,12 @@ from configs.vae_config import (
 )
 from datasets.mnist import test_loader
 from torch.utils.data import DataLoader
-from models.cvae_002 import CVAE
+from models.cvae import CVAE2 as CVAE
 
 import torch.nn.functional as F
 
 batch_size = 1
-weight_path = "tmp/weights/cvae_120_case2.pth"
+weight_path = "tmp/weights/cvae_120_case2_test_b_90.pth"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -38,7 +38,7 @@ def plot_latent(
         if i > num_batches:
             break
     plt.colorbar()
-    plt.savefig("latent_embeddings_cvae_case2.png")
+    plt.savefig("latent_embeddings_cvae_case2_b99.png")
 
 
 def plot_reconstructed(autoencoder, r0=(-5, 10), r1=(-10, 5), n=12):
@@ -57,7 +57,7 @@ def plot_reconstructed(autoencoder, r0=(-5, 10), r1=(-10, 5), n=12):
 
 
 # Model definition
-encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=5)
+encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
 decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
 model = CVAE(encoder=encoder, decoder=decoder, device=device, num_classes=10).to(device)
 

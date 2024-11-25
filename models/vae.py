@@ -11,6 +11,7 @@ class Encoder(nn.Module):
         hidden_dim: int = 512,
         latent_dim: int = 2,
         depth: int = 3,
+        head_depth: int = 3
     ):
         super(Encoder, self).__init__()
         self._layers = [nn.Linear(input_dim, hidden_dim), nn.LeakyReLU(0.2)]
@@ -19,8 +20,19 @@ class Encoder(nn.Module):
             self._layers.append(nn.LeakyReLU(0.2))
 
         self.linear_relu_stack = nn.Sequential(*self._layers)
-        self.mean_proj = nn.Linear(hidden_dim, latent_dim)
-        self.var_proj = nn.Linear(hidden_dim, latent_dim)
+        # self.mean_proj = nn.Linear(hidden_dim, latent_dim)
+        # self.var_proj = nn.Linear(hidden_dim, latent_dim)
+
+        self._mean_layers, self._var_layers = [], []
+        for _ in range(head_depth - 1):
+            self._mean_layers.append(nn.Linear(hidden_dim, hidden_dim))
+            self._mean_layers.append(nn.LeakyReLU(0.2))
+            self._var_layers.append(nn.Linear(hidden_dim, hidden_dim))
+            self._var_layers.append(nn.LeakyReLU(0.2))
+        self._mean_layers.append(nn.Linear(hidden_dim, latent_dim))
+        self._var_layers.append(nn.Linear(hidden_dim, latent_dim))
+        self.mean_proj = nn.Sequential(*self._mean_layers)
+        self.var_proj = nn.Sequential(*self._var_layers)
         self.training = True
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -56,6 +68,11 @@ class Decoder(nn.Module):
 
 
 class VariationalAutoEncoder(nn.Module):
+    """
+    Ref.: https://mbernste.github.io/posts/vae/
+    Ref.: https://beckham.nz/2023/04/27/conditional-vaes.html#orgc79ebc2
+    Must read: https://jmtomczak.github.io/blog/4/4_VAE.html
+    """
 
     def __init__(
         self,
@@ -89,6 +106,7 @@ class VariationalAutoEncoder(nn.Module):
             raise TypeError(f"Unsupported type {type(decoder)}!")
 
     def reparameterization(self, mean, var):
+        # https://gregorygundersen.com/blog/2018/04/29/reparameterization/
         epsilon = torch.randn_like(var).to(self.device)  # sampling epsilon
         z = mean + var * epsilon  # reparameterization trick
         return z

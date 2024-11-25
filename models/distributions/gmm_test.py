@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
+# https://github.com/jmtomczak/vae_vpflows/blob/master/utils/distributions.py
 def generate_circular_gaussian_mixture(num_gaussians, num_samples_per_gaussian, radius):
     """
     Generates a mixture of 2D Gaussians distributed on a circle.
