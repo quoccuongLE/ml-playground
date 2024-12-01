@@ -1,4 +1,5 @@
 from typing import Optional
+import math
 import numpy as np
 
 import torch.nn.functional as F
@@ -51,24 +52,15 @@ def log_normal_diag(
     reduction: Optional[str] = None,
     dim: Optional[int] = None,
 ) -> torch.Tensor:
-    D = x.shape[1]
-    log_p = -0.5 * D * torch.log(2. * PI) - 0.5 * log_var - 0.5 * (x - mu).pow(2) / log_var.exp()
-    if reduction == 'avg':
+    var_dim = x.shape[1]
+    log_p = -0.5 * var_dim * torch.log(2. * torch.tensor(math.pi)) - 0.5 * log_var - 0.5 * (x - mu).pow(2) / log_var.exp()
+    # log_p = -0.5 * log_var - 0.5 * (x - mu).pow(2) / log_var.exp()
+    if reduction == "avg":
         return torch.mean(log_p, dim)
-    elif reduction == 'sum':
+    elif reduction == "sum":
         return torch.sum(log_p, dim)
     else:
         return log_p
-
-
-# def log_normal_standard(
-#     x: torch.Tensor, average: bool = False, dim: int | None = None
-# ) -> torch.Tensor:
-#     log_normal = -0.5 * torch.pow(x, 2)
-#     if average:
-#         return torch.mean(log_normal, dim)
-#     else:
-#         return torch.sum(log_normal, dim)
 
 
 def log_standard_normal(
@@ -76,8 +68,9 @@ def log_standard_normal(
     reduction: Optional[str] = None,
     dim: Optional[int] = None,
 ) -> torch.Tensor:
-    D = x.shape[1]
-    log_p = -0.5 * D * torch.log(2.0 * PI) - 0.5 * x.pow(2)
+    var_dim = x.shape[1]
+    log_p = -0.5 * var_dim * torch.log(2.0 * torch.tensor(math.pi)) - 0.5 * x.pow(2)
+    # log_p = - 0.5 * x.pow(2)
     if reduction == "avg":
         return torch.mean(log_p, dim)
     elif reduction == "sum":
@@ -87,7 +80,10 @@ def log_standard_normal(
 
 
 def log_bernoulli(
-    x: torch.Tensor, p: torch.Tensor, reduction: Optional[str] = None, dim: Optional[int] = None
+    x: torch.Tensor,
+    p: torch.Tensor,
+    reduction: Optional[str] = None,
+    dim: Optional[int] = None,
 ) -> torch.Tensor:
     pp = torch.clamp(p, EPS, 1.0 - EPS)
     log_p = x * torch.log(pp) + (1.0 - x) * torch.log(1.0 - pp)

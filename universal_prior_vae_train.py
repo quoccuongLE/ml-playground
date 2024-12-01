@@ -16,6 +16,7 @@ from configs.vae_config import (
 )
 
 
+# torch.manual_seed(999)
 weight_path = "tmp/weights/vae_universal_prior_120.pth"
 # Model Hyperparameters
 cuda = True

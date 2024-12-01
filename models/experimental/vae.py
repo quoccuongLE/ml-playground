@@ -1,3 +1,4 @@
+import math
 from typing import List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
@@ -24,7 +25,7 @@ class Encoder(_Encoder):
         super().__init__(input_dim, hidden_dim, latent_dim, depth, head_depth)
 
     @staticmethod
-    def reparameterization(mean: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
+    def reparameterization(mean: torch.Tensor, log_var: torch.Tensor, sample_num: int = -1) -> torch.Tensor:
         """The reparameterization trick for Gaussians.
 
         Args:
@@ -36,11 +37,17 @@ class Encoder(_Encoder):
         """
         # z = mu + std * epsilon, in which epsilon ~ Normal(0,1)
         # First, we need to get std from log-variance.
-        std = torch.exp(0.5 * log_var)
-        # Second, we sample epsilon from Normal(0,1).
-        eps = torch.randn_like(std)
-        # The final output
-        return mean + std * eps
+        # std = torch.exp(0.5 * log_var)
+        # # Second, we sample epsilon from Normal(0,1).
+        # eps = torch.randn_like(std)
+        if sample_num == -1:
+            eps = torch.randn_like(log_var)
+            # The final output
+            return mean + log_var * eps
+        else:
+            shape = log_var.shape
+            eps = torch.randn([sample_num] + list(shape)).to(log_var.device)
+            return mean + log_var * eps
 
     # This function implements the output of the encoder network (i.e., parameters of a Gaussian).
     def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -81,7 +88,7 @@ class Encoder(_Encoder):
         mean: Optional[torch.Tensor] = None,
         log_var: Optional[torch.Tensor] = None,
         z: Optional[torch.Tensor] = None,
-        reduction: str = "sum"
+        reduction: Optional[str] = None
     ) -> torch.Tensor:
         return log_normal_diag(x=z, mu=mean, log_var=log_var, reduction=reduction)
 
@@ -160,17 +167,14 @@ class Decoder(_Decoder):
         return x_new
 
     # This function calculates the conditional log-likelihood function.
-    def log_prob(self, x: torch.Tensor, x_hat: torch.Tensor) -> torch.Tensor:
+    def log_prob(self, x: torch.Tensor, x_hat: torch.Tensor, reduction: str = "sum") -> torch.Tensor:
         if self.distribution == "categorical":
-            mu_d = x_hat[0]
             log_p = log_categorical(
-                x, mu_d, num_classes=self.num_vals, reduction="sum", dim=-1
+                x, x_hat, num_classes=self.num_vals, reduction=reduction, dim=-1
             ).sum(-1)
 
         else:
-            mu_d = x_hat[0]
-            log_p = log_bernoulli(x, mu_d, reduction="sum", dim=-1)
-            # log_p = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
+            log_p = log_bernoulli(x, x_hat, reduction=reduction)
 
         return log_p
 
@@ -183,9 +187,11 @@ class VAE(nn.Module):
         decoder: Union[nn.Module, dict],
         device: str,
         latent_dim: Optional[int] = None,
+        latent_sample_num: int = 128
     ):
         super(VAE, self).__init__()
         self.device = device
+        self.latent_sample_num = latent_sample_num
         self.prior = Prior(latent_dim=latent_dim)
         if isinstance(encoder, nn.Module):
             self.encoder = encoder
@@ -213,24 +219,40 @@ class VAE(nn.Module):
             raise TypeError(f"Unsupported type {type(decoder)}!")
 
     def forward(
-        self, x: torch.Tensor, reduction: str = "sum", mode: str = "train"
+        self, x: torch.Tensor, reduction: str = "sum", mode: str = "train", sampling: bool = True
     ) -> Union[Tuple[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor]:
         mean, log_var = self.encoder(x)
-        z = self.encoder.reparameterization(mean=mean, log_var=log_var)
-        x_hat = self.decoder(z)
+        if sampling:
+            # Unlike non-sampling case, in reparameterization step samples
+            # latent_sample_num times, leading a output shape of [latent_sample_num, batch_size, latent_dim]
+            z = self.encoder.reparameterization(
+                mean=mean, log_var=log_var, sample_num=self.latent_sample_num
+            )
+            # Only take the first samples among latent_sample_num samples
+            x_hat = self.decoder(z[0])
+        else:
+            z = self.encoder.reparameterization(mean=mean, log_var=log_var)
+            x_hat = self.decoder(z)
 
         if mode == "train":
             # ELBO
-            # RE = self.decoder.log_prob(x, x_hat)
             if reduction == "sum":
-                RE = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-                KL = (self.prior.log_prob(z) - self.encoder.log_prob(mean=mean, log_var=log_var, z=z)).sum()
-                if torch.isnan(RE) or torch.isnan(KL):
-                    raise ValueError("NaN value detected !")
-                return RE + KL
-                # reconstruction_loss = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-                # KLD = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
-                # return reconstruction_loss + KLD
+                if not sampling:
+                    # In the case where the chosen prior and chosen posterior are
+                    # gaussian distributions (in the original paper of VAE
+                    # Kingma & Welling 2013), we can directly obtain KL-Divergence
+                    # value (KL) and reconstruction loss (RE) via analytical forms 
+                    KL = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
+                    RE = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
+                    return RE + KL
+                else:
+                    # In the case where analytical forms are not available, we
+                    # apply Monte Carlo method by sampling over a distribution
+                    # (see reparameterization code in Encoder)
+                    RE = - self.decoder.log_prob(x, x_hat)
+                    # Mean(dim=0) here is to calculate the expectaion value in Monte Carlo method
+                    KL = (self.encoder.log_prob(mean=mean, log_var=log_var, z=z) - self.prior.log_prob(z)).mean(dim=0).sum()
+                    return RE + KL
             else:
                 # return -(RE + KL).mean()
                 raise NotImplementedError
