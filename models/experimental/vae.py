@@ -187,11 +187,13 @@ class VAE(nn.Module):
         decoder: Union[nn.Module, dict],
         device: str,
         latent_dim: Optional[int] = None,
-        latent_sample_num: int = 128
+        latent_sample_num: int = 128,
+        beta: float = 0.5
     ):
         super(VAE, self).__init__()
         self.device = device
         self.latent_sample_num = latent_sample_num
+        self.beta = beta
         self.prior = Prior(latent_dim=latent_dim)
         if isinstance(encoder, nn.Module):
             self.encoder = encoder
@@ -241,18 +243,18 @@ class VAE(nn.Module):
                     # In the case where the chosen prior and chosen posterior are
                     # gaussian distributions (in the original paper of VAE
                     # Kingma & Welling 2013), we can directly obtain KL-Divergence
-                    # value (KL) and reconstruction loss (RE) via analytical forms 
+                    # value (KL) and reconstruction loss (RE) via analytical forms
                     KL = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
                     RE = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-                    return RE + KL
                 else:
                     # In the case where analytical forms are not available, we
                     # apply Monte Carlo method by sampling over a distribution
                     # (see reparameterization code in Encoder)
                     RE = - self.decoder.log_prob(x, x_hat)
-                    # Mean(dim=0) here is to calculate the expectaion value in Monte Carlo method
+                    # Mean(dim=0) here is to calculate the expectation value of
+                    # the integral by Monte Carlo method
                     KL = (self.encoder.log_prob(mean=mean, log_var=log_var, z=z) - self.prior.log_prob(z)).mean(dim=0).sum()
-                    return RE + KL
+                return (1 - self.beta) * RE + self.beta * KL
             else:
                 # return -(RE + KL).mean()
                 raise NotImplementedError

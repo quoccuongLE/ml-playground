@@ -18,7 +18,7 @@ batch_size = 1
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # torch.manual_seed(999)
-weight_path = "tmp/weights/vae_universal_prior_120.pth"
+weight_path = "tmp/weights/vae_universal_prior_120_L128.pth"
 # Model Hyperparameters
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")
@@ -29,6 +29,9 @@ decoder = dict(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim, d
 model = VAE(encoder=encoder, decoder=decoder, device=device, latent_dim=latent_dim).to(
     device
 )
+model.load_state_dict(torch.load(weight_path, weights_only=True))
+model.to(torch.device(device))
+model.eval()
 
 def plot_latent(autoencoder, data_loader, num_batches=100):
     for i, (x, y) in enumerate(data_loader):
