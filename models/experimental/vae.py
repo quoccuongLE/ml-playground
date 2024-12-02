@@ -243,7 +243,8 @@ class VAE(nn.Module):
                     # In the case where the chosen prior and chosen posterior are
                     # gaussian distributions (in the original paper of VAE
                     # Kingma & Welling 2013), we can directly obtain KL-Divergence
-                    # value (KL) and reconstruction loss (RE) via analytical forms
+                    # value (KL) and reconstruction loss (RE) via their
+                    # analytical forms (see. Appendix of the paper)
                     KL = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
                     RE = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
                 else:
@@ -256,7 +257,6 @@ class VAE(nn.Module):
                     KL = (self.encoder.log_prob(mean=mean, log_var=log_var, z=z) - self.prior.log_prob(z)).mean(dim=0).sum()
                 return (1 - self.beta) * RE + self.beta * KL
             else:
-                # return -(RE + KL).mean()
                 raise NotImplementedError
         else:
             return x_hat, mean, log_var
