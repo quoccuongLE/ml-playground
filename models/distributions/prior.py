@@ -1,3 +1,4 @@
+import math
 from typing import Optional
 import numpy as np
 import torch
@@ -28,7 +29,9 @@ class Prior:
         z = torch.randn((batch_size, self.latent_dim))
         return z
 
-    def sample_n(self, batch_size: int, sample_num: Optional[int] = None) -> torch.Tensor:
+    def sample_n(
+        self, batch_size: int, sample_num: Optional[int] = None
+    ) -> torch.Tensor:
         if sample_num is None:
             sample_num = self.sample_num
         z = torch.randn((sample_num, batch_size, self.latent_dim))
@@ -38,30 +41,63 @@ class Prior:
         return log_standard_normal(z)
 
 
-class GaussianMultivariateMixture:
+class GaussianMultivariateMixture2D:
 
-    def __init__(self, latent_dim: int, num_classes: int):
+    def __init__(self, latent_dim: int, num_classes: int, device: str = "cpu"):
         super().__init__()
+        assert (
+            latent_dim == 2
+        ), "This is a 2D Multivariate Gaussian Mixture, the latent dimension must be equal to 2"
         self.latent_dim = latent_dim
+        self._device = device
         self.num_classes = num_classes
         self.gaussians_means: dict[int, np.ndarray] = dict()
         self.gaussians_covs: dict[int, np.ndarray] = dict()
-        self.gaussians: dict[int, np.ndarray] = dict()
+        self.gaussians: dict[int, Distribution] = dict()
         self._init_mixture_of_gaussians(radius=4.0, sigma_1=2.0, sigma_2=0.1)
+        self._mean: torch.Tensor = None
+        self._cov: torch.Tensor = None
+        self._det: torch.Tensor = None
+        self._inv: torch.Tensor = None
 
     def _init_mixture_of_gaussians(
         self, radius: float, sigma_1: float = 1.0, sigma_2: float = 0.2
     ):
         angles = np.linspace(0, 2 * np.pi, self.num_classes, endpoint=False)
+        _mean = []
+        _cov = []
+        _det = []
+        _inv = []
         for i, angle in enumerate(angles):
             mean = radius * np.array([np.cos(angle), np.sin(angle)])
-            cov = np.array([[sigma_1, 0], [0, sigma_2]])
+            cov = torch.from_numpy(cov_rotation(np.array([[sigma_1, 0], [0, sigma_2]]), angle))
+            determinant = torch.det(cov)
+            inv_cov = torch.inverse(cov)
             self.gaussians_means[i] = mean
-            self.gaussians_covs[i] = cov_rotation(cov, angle)
+            self.gaussians_covs[i] = cov
             self.gaussians[i] = MultivariateNormal(mean, cov)
+            _mean.append(torch.from_numpy(self.gaussians_means[i]))
+            _cov.append(torch.from_numpy(self.gaussians_covs[i]))
+            _det.append(determinant)
+            _inv.append(inv_cov)
+        self._mean = torch.stack(_mean).to(device=self._device)
+        self._cov = torch.stack(_cov).to(device=self._device)
+        self._det = torch.stack(_det).to(device=self._device)
+        self._inv = torch.stack(_inv).to(device=self._device)
 
-    def sample(self, batch_size: int, label: int):
-        pass
+    def sample(self, labels: torch.Tensor):
+        res = []
+        for label in labels:
+            res.append(self.gaussians[int(label)].sample(torch.Size([1])))
+        return torch.stack(res)
 
-    def log_prob(self, value: torch.Tensor) -> torch.Tensor:
-        return super().log_prob(value)
+    def log_prob(self, x: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
+        assert x.shape[0] == label.shape[0]
+        # Reshape
+        mean = self._mean[label]
+        inv = self._inv[label]
+        return (
+            - 0.5 * self.latent_dim * torch.log(2.0 * torch.pi)
+            - 0.5 * torch.log(self._det[label])
+            - 0.5 * torch.matmul(torch.matmul(x - mean, inv), (x - mean).T)
+        )

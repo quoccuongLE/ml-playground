@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from .vae import VAE
+from ..distributions.prior import GaussianMultivariateMixture2D
 
 import torch.nn.functional as F
 
@@ -35,29 +36,33 @@ class CVAE(VAE):
             latent_sample_num=latent_sample_num,
             beta=beta
         )
-        self.num_classes = num_classes
-        self.gaussians_means: dict[int, np.ndarray] = dict()
-        self.gaussians_covs: dict[int, np.ndarray] = dict()
-        self.init_mixture_of_gaussians(radius=4.0)
-        self.means = torch.tensor(np.stack(list(self.gaussians_means.values()))).to(
-            device
-        )
-
-    def init_mixture_of_gaussians(self, radius: float, sigma: float = 1.0):
-        angles = np.linspace(0, 2 * np.pi, self.num_classes, endpoint=False)
-        for i, angle in enumerate(angles):
-            self.gaussians_means[i] = radius * np.array([np.cos(angle), np.sin(angle)])
-            self.gaussians_covs[i] = np.array([[sigma, 0], [0, sigma]])
+        self.prior = GaussianMultivariateMixture2D(latent_dim=latent_dim, num_classes=num_classes, device=device)
 
     def forward(
-        self, x: torch.Tensor, y: torch.Tensor
+        self, x: torch.Tensor, y: torch.Tensor, reduction: str = "sum", mode: str = "train", sampling: bool = True
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # z ~ p(z|x, y)
         mean, log_var = self.encoder(x)
-        z = self.reparameterization(
-            mean, torch.exp(0.5 * log_var)
-        )  # takes exponential function (log var -> var)
-        # x_hat ~ p(x|z)
-        x_hat = self.decoder(z)
+        if sampling:
+            # Unlike non-sampling case, in reparameterization step samples
+            # latent_sample_num times, leading a output shape of [latent_sample_num, batch_size, latent_dim]
+            z = self.encoder.reparameterization(
+                mean=mean, log_var=log_var, sample_num=self.latent_sample_num
+            )
+            # Only take the first samples among latent_sample_num samples
+            x_hat = self.decoder(z[0])
+        else:
+            z = self.encoder.reparameterization(mean=mean, log_var=log_var)
+            x_hat = self.decoder(z)
 
-        return x_hat, mean, log_var
+        if mode == "train":
+            if not sampling:
+                raise NotImplementedError
+            else:
+                RE = - self.decoder.log_prob(x, x_hat)
+                KL = self.encoder.log_prob(
+                    mean=mean, log_var=log_var, z=z
+                ) - self.prior.log_prob(x=z, label=y)
+                return (1 - self.beta) * RE + self.beta * KL
+        else:
+            return x_hat, mean, log_var
