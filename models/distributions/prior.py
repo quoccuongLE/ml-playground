@@ -54,11 +54,11 @@ class GaussianMultivariateMixture2D:
         self.gaussians_means: dict[int, np.ndarray] = dict()
         self.gaussians_covs: dict[int, np.ndarray] = dict()
         self.gaussians: dict[int, Distribution] = dict()
-        self._init_mixture_of_gaussians(radius=4.0, sigma_1=2.0, sigma_2=0.1)
         self._mean: torch.Tensor = None
         self._cov: torch.Tensor = None
         self._det: torch.Tensor = None
         self._inv: torch.Tensor = None
+        self._init_mixture_of_gaussians(radius=4.0, sigma_1=2.0, sigma_2=0.1)
 
     def _init_mixture_of_gaussians(
         self, radius: float, sigma_1: float = 1.0, sigma_2: float = 0.2
@@ -69,15 +69,19 @@ class GaussianMultivariateMixture2D:
         _det = []
         _inv = []
         for i, angle in enumerate(angles):
-            mean = radius * np.array([np.cos(angle), np.sin(angle)])
-            cov = torch.from_numpy(cov_rotation(np.array([[sigma_1, 0], [0, sigma_2]]), angle))
+            mean = torch.from_numpy(
+                radius * np.array([np.cos(angle), np.sin(angle)])
+            ).to(torch.float)
+            cov = torch.from_numpy(
+                cov_rotation(np.array([[sigma_1, 0], [0, sigma_2]]), angle)
+            ).to(torch.float)
             determinant = torch.det(cov)
             inv_cov = torch.inverse(cov)
             self.gaussians_means[i] = mean
             self.gaussians_covs[i] = cov
             self.gaussians[i] = MultivariateNormal(mean, cov)
-            _mean.append(torch.from_numpy(self.gaussians_means[i]))
-            _cov.append(torch.from_numpy(self.gaussians_covs[i]))
+            _mean.append(self.gaussians_means[i])
+            _cov.append(self.gaussians_covs[i])
             _det.append(determinant)
             _inv.append(inv_cov)
         self._mean = torch.stack(_mean).to(device=self._device)
@@ -92,12 +96,22 @@ class GaussianMultivariateMixture2D:
         return torch.stack(res)
 
     def log_prob(self, x: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
-        assert x.shape[0] == label.shape[0]
-        # Reshape
-        mean = self._mean[label]
-        inv = self._inv[label]
-        return (
-            - 0.5 * self.latent_dim * torch.log(2.0 * torch.pi)
-            - 0.5 * torch.log(self._det[label])
-            - 0.5 * torch.matmul(torch.matmul(x - mean, inv), (x - mean).T)
-        )
+        num_samples = x.shape[0]
+        batch_size = x.shape[1]
+        assert x.shape[-2] == label.shape[0]
+        mean = self._mean[label].repeat(num_samples, 1)
+        inv = self._inv[label].repeat(num_samples, 1, 1)
+
+        # [num_samples*batch_size, latent_dim]
+        x_m_mean = x.reshape(-1, 1, self.latent_dim) - mean[:, None, :]
+
+        # log_prob = -0.5 * torch.matmul(
+        #     torch.matmul(x_m_mean, inv), torch.transpose(x_m_mean, 1, 2)
+        # ).reshape(num_samples, batch_size, self.latent_dim)
+        log_prob = -0.5 * x_m_mean * torch.matmul(inv, x_m_mean.transpose(1,2)).transpose(1,2)
+        # [num_samples*batch_size, 1, latent_dim] -> [num_samples, batch_size, latent_dim]
+        log_prob = log_prob.reshape(num_samples, batch_size, self.latent_dim)
+        log_prob += -0.5 * self.latent_dim * torch.log(torch.tensor(2.0 * torch.pi))
+        log_prob += -0.5 * torch.log(self._det[label])[None, :, None]
+
+        return log_prob

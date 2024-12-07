@@ -19,7 +19,7 @@ from configs.vae_config import (
 # torch.manual_seed(999)
 # Model Hyperparameters
 
-sampling = False
+sampling = True
 latent_sample_num = 128
 if sampling:
     weight_path = f"tmp/weights/vae_universal_prior_120_L{latent_sample_num}.pth"

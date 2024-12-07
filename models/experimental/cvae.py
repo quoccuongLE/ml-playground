@@ -24,7 +24,7 @@ class CVAE(VAE):
         decoder: Union[nn.Module, dict],
         num_classes: int,
         device: str,
-        latent_dim: Optional[int] = None,
+        latent_dim: int,
         latent_sample_num: int = 128,
         beta: float = 0.5,
     ):
@@ -60,9 +60,19 @@ class CVAE(VAE):
                 raise NotImplementedError
             else:
                 RE = - self.decoder.log_prob(x, x_hat)
-                KL = self.encoder.log_prob(
-                    mean=mean, log_var=log_var, z=z
-                ) - self.prior.log_prob(x=z, label=y)
+                # log_posterior_prob = self.encoder.log_prob(mean=mean, log_var=log_var, z=z)
+                # log_prior_prob = self.prior.log_prob(x=z, label=y)
+                # KL = (log_posterior_prob - log_prior_prob)
+                # log_posterior_prob = self.encoder.log_prob(mean=mean, log_var=log_var, z=z)
+                # log_prior_prob = self.prior.log_prob(x=z, label=y)
+                KL = (
+                    (
+                        self.encoder.log_prob(mean=mean, log_var=log_var, z=z)
+                        - self.prior.log_prob(x=z, label=y)
+                    )
+                    .mean(dim=0)
+                    .sum()
+                )
                 return (1 - self.beta) * RE + self.beta * KL
         else:
             return x_hat, mean, log_var
