@@ -27,6 +27,7 @@ class CVAE(VAE):
         latent_dim: int,
         latent_sample_num: int = 128,
         beta: float = 0.5,
+        prior: Optional[dict] = None,
     ):
         super().__init__(
             encoder,
@@ -34,12 +35,24 @@ class CVAE(VAE):
             device=device,
             latent_dim=latent_dim,
             latent_sample_num=latent_sample_num,
-            beta=beta
+            beta=beta,
         )
-        self.prior = GaussianMultivariateMixture2D(latent_dim=latent_dim, num_classes=num_classes, device=device)
+        self.prior = GaussianMultivariateMixture2D(
+            latent_dim=latent_dim,
+            num_classes=num_classes,
+            device=device,
+            radius=prior.get("radius"),
+            sigma_1=prior.get("sigma_1"),
+            sigma_2=prior.get("sigma_2"),
+        )
 
     def forward(
-        self, x: torch.Tensor, y: torch.Tensor, reduction: str = "sum", mode: str = "train", sampling: bool = True
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        reduction: str = "sum",
+        mode: str = "train",
+        sampling: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # z ~ p(z|x, y)
         mean, log_var = self.encoder(x)
@@ -59,12 +72,10 @@ class CVAE(VAE):
             if not sampling:
                 raise NotImplementedError
             else:
-                RE = - self.decoder.log_prob(x, x_hat)
-                # log_posterior_prob = self.encoder.log_prob(mean=mean, log_var=log_var, z=z)
-                # log_prior_prob = self.prior.log_prob(x=z, label=y)
-                # KL = (log_posterior_prob - log_prior_prob)
-                # log_posterior_prob = self.encoder.log_prob(mean=mean, log_var=log_var, z=z)
-                # log_prior_prob = self.prior.log_prob(x=z, label=y)
+                RE = -self.decoder.log_prob(x, x_hat)
+                # log_posterior_prob = self.encoder.log_prob(mean=mean, log_var=log_var, z=z) # -61669736.0
+                # log_prior_prob = self.prior.log_prob(x=z, label=y)  # -241024.96875
+                # KL = (log_posterior_prob - log_prior_prob).mean(dim=0).sum()
                 KL = (
                     (
                         self.encoder.log_prob(mean=mean, log_var=log_var, z=z)

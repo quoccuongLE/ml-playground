@@ -18,7 +18,7 @@ from configs.vae_config import (
 torch.manual_seed(999)
 # Model Hyperparameters
 sampling = True
-latent_sample_num = 128
+latent_sample_num = 256
 if sampling:
     weight_path = f"tmp/weights/vae_universal_prior_120_L{latent_sample_num}.pth"
 else:
@@ -31,6 +31,7 @@ device = torch.device("cuda" if cuda else "cpu")
 # Model definition
 encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
 decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+prior = dict(radius=0.0, sigma_1=1.0, sigma_2=1.0)
 model = CVAE(
     encoder=encoder,
     decoder=decoder,
@@ -38,6 +39,7 @@ model = CVAE(
     device=device,
     num_classes=10,
     latent_sample_num=latent_sample_num,
+    prior=prior
 ).to(device)
 
 optimizer = Adam(model.parameters(), lr=lr)
@@ -53,8 +55,9 @@ for epoch in range(epochs):
         loss = model(x, y=y, mode="train", sampling=sampling)
 
         overall_loss += loss.item() / train_loader.batch_size
+        # print(loss.item())
 
-        loss.backward()
+        loss.backward() # 139040.5
         optimizer.step()
 
     print(

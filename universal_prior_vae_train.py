@@ -16,7 +16,7 @@ from configs.vae_config import (
 )
 
 
-# torch.manual_seed(999)
+torch.manual_seed(999)
 # Model Hyperparameters
 
 sampling = True
@@ -51,7 +51,7 @@ for epoch in range(epochs):
         x = x.to(device)
         loss = model(x, mode="train", sampling=sampling)
         overall_loss += loss.item() / train_loader.batch_size
-        # print(loss.item())
+        print(loss.item())
 
         optimizer.zero_grad()
         loss.backward()

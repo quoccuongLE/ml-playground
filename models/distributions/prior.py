@@ -43,7 +43,15 @@ class Prior:
 
 class GaussianMultivariateMixture2D:
 
-    def __init__(self, latent_dim: int, num_classes: int, device: str = "cpu"):
+    def __init__(
+        self,
+        latent_dim: int,
+        num_classes: int,
+        radius: Optional[float] = None,
+        sigma_1: Optional[float] = None,
+        sigma_2: Optional[float] = None,
+        device: str = "cpu",
+    ):
         super().__init__()
         assert (
             latent_dim == 2
@@ -58,7 +66,9 @@ class GaussianMultivariateMixture2D:
         self._cov: torch.Tensor = None
         self._det: torch.Tensor = None
         self._inv: torch.Tensor = None
-        self._init_mixture_of_gaussians(radius=4.0, sigma_1=2.0, sigma_2=0.1)
+        self._init_mixture_of_gaussians(
+            radius=radius, sigma_1=sigma_1 or 2.0, sigma_2=sigma_2 or 0.1
+        )
 
     def _init_mixture_of_gaussians(
         self, radius: float, sigma_1: float = 1.0, sigma_2: float = 0.2
@@ -99,19 +109,18 @@ class GaussianMultivariateMixture2D:
         num_samples = x.shape[0]
         batch_size = x.shape[1]
         assert x.shape[-2] == label.shape[0]
-        mean = self._mean[label].repeat(num_samples, 1)
-        inv = self._inv[label].repeat(num_samples, 1, 1)
+        mean = self._mean[label].repeat(num_samples, 1, 1)
+        inv = self._inv[label].repeat(num_samples, 1,  1, 1)
 
-        # [num_samples*batch_size, latent_dim]
-        x_m_mean = x.reshape(-1, 1, self.latent_dim) - mean[:, None, :]
+        x_m_mean = x[:, :, None, :] - mean[:, :, None, :]
 
         # log_prob = -0.5 * torch.matmul(
         #     torch.matmul(x_m_mean, inv), torch.transpose(x_m_mean, 1, 2)
         # ).reshape(num_samples, batch_size, self.latent_dim)
-        log_prob = -0.5 * x_m_mean * torch.matmul(inv, x_m_mean.transpose(1,2)).transpose(1,2)
-        # [num_samples*batch_size, 1, latent_dim] -> [num_samples, batch_size, latent_dim]
-        log_prob = log_prob.reshape(num_samples, batch_size, self.latent_dim)
-        log_prob += -0.5 * self.latent_dim * torch.log(torch.tensor(2.0 * torch.pi))
-        log_prob += -0.5 * torch.log(self._det[label])[None, :, None]
+
+        # log_prob = -0.5 * x_m_mean * torch.matmul(inv, x_m_mean.transpose(1,2)).transpose(1,2)
+        log_prob = -0.5 * (x_m_mean * torch.matmul(x_m_mean, inv)).squeeze(dim=2)  # log_prob = -130.7499
+        log_prob -= 0.5 * self.latent_dim * torch.log(torch.tensor(2.0 * torch.pi))
+        log_prob -= 0.5 * torch.log(self._det[label])[None, :, None]
 
         return log_prob

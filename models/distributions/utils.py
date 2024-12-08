@@ -52,7 +52,7 @@ def log_normal_diag(
     reduction: Optional[str] = None,
     dim: Optional[int] = None,
 ) -> torch.Tensor:
-    var_dim = x.shape[1]
+    var_dim = x.shape[-1]
     log_p = -0.5 * var_dim * torch.log(torch.tensor(2.0 * torch.pi)) - 0.5 * log_var - 0.5 * (x - mu).pow(2) / log_var.exp()
     # log_p = -0.5 * log_var - 0.5 * (x - mu).pow(2) / log_var.exp()
     if reduction == "avg":
@@ -68,7 +68,7 @@ def log_standard_normal(
     reduction: Optional[str] = None,
     dim: Optional[int] = None,
 ) -> torch.Tensor:
-    var_dim = x.shape[1]
+    var_dim = x.shape[-1]
     log_p = -0.5 * var_dim * torch.log(torch.tensor(2.0 * torch.pi)) - 0.5 * x.pow(2)
     # log_p = - 0.5 * x.pow(2)
     if reduction == "avg":

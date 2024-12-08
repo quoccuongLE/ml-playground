@@ -253,7 +253,7 @@ class VAE(nn.Module):
                     # (see reparameterization code in Encoder)
                     RE = - self.decoder.log_prob(x, x_hat)
                     # Mean(dim=0) here is to calculate the expectation value of
-                    # the integral by Monte Carlo method
+                    # the integral by Monte Carlo method -61669736. - 61669048.
                     KL = (self.encoder.log_prob(mean=mean, log_var=log_var, z=z) - self.prior.log_prob(z)).mean(dim=0).sum()
                 return (1 - self.beta) * RE + self.beta * KL
             else:
