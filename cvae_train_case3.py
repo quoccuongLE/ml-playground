@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.optim import Adam
+from torch.optim import Adam, Adamax
 
 from models.experimental.cvae import CVAE
 from datasets.mnist import train_loader
@@ -20,10 +20,10 @@ torch.manual_seed(999)
 sampling = True
 latent_sample_num = 256
 if sampling:
-    weight_path = f"tmp/weights/vae_universal_prior_120_L{latent_sample_num}.pth"
+    weight_path = f"tmp/weights/cvae_120_L{latent_sample_num}.pth"
 else:
     latent_sample_num = -1
-    weight_path = f"tmp/weights/vae_universal_prior_120_L1.pth"
+    weight_path = f"tmp/weights/cvae_120_L1.pth"
 
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")
@@ -31,7 +31,7 @@ device = torch.device("cuda" if cuda else "cpu")
 # Model definition
 encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
 decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
-prior = dict(radius=0.0, sigma_1=1.0, sigma_2=1.0)
+prior = dict(radius=4.0, sigma_1=2.0, sigma_2=0.1)
 model = CVAE(
     encoder=encoder,
     decoder=decoder,
@@ -42,7 +42,7 @@ model = CVAE(
     prior=prior
 ).to(device)
 
-optimizer = Adam(model.parameters(), lr=lr)
+optimizer = Adamax(model.parameters(), lr=lr)
 print("Start training C-VAE...")
 model.train()
 
@@ -57,6 +57,7 @@ for epoch in range(epochs):
         overall_loss += loss.item() / train_loader.batch_size
         # print(loss.item())
 
+        optimizer.zero_grad()
         loss.backward() # 139040.5
         optimizer.step()
 
