@@ -15,15 +15,12 @@ from configs.vae_config import (
     train_batch_size,
 )
 
-torch.manual_seed(999)
+# torch.manual_seed(999)
 # Model Hyperparameters
 sampling = True
 latent_sample_num = 256
-if sampling:
-    weight_path = f"tmp/weights/cvae_120_L{latent_sample_num}.pth"
-else:
-    latent_sample_num = -1
-    weight_path = f"tmp/weights/cvae_120_L1.pth"
+beta = 0.9
+weight_path = f"tmp/weights/uni_cvae_120_b{beta}.pth"
 
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")
@@ -36,10 +33,11 @@ model = CVAE(
     encoder=encoder,
     decoder=decoder,
     latent_dim=latent_dim,
-    device=device,
     num_classes=10,
     latent_sample_num=latent_sample_num,
-    prior=prior
+    prior=prior,
+    beta=beta,
+    device=device,
 ).to(device)
 
 optimizer = Adamax(model.parameters(), lr=lr)
