@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from ..vae import Encoder as _Encoder, Decoder as _Decoder
-from ..distributions.prior import Prior
+from ..distributions.prior import BasePrior
 from ..distributions.utils import log_normal_diag, log_bernoulli, log_categorical
 
 
@@ -194,7 +194,7 @@ class VAE(nn.Module):
         self.device = device
         self.latent_sample_num = latent_sample_num
         self.beta = beta
-        self.prior = Prior(latent_dim=latent_dim)
+        self.prior = BasePrior(latent_dim=latent_dim)
         if isinstance(encoder, nn.Module):
             self.encoder = encoder
         elif isinstance(encoder, dict):
@@ -263,4 +263,4 @@ class VAE(nn.Module):
 
     def sample(self, batch_size: int = 64):
         z = self.prior.sample(batch_size=batch_size)
-        return self.decoder.sample(z)
+        return self.decoder(z)

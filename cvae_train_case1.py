@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 
-from models.cvae import CVAE
+from models.legacy.cvae import CVAE
 from datasets.mnist import train_loader
 
 from configs.vae_config import (

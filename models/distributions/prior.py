@@ -1,12 +1,11 @@
-import math
 from typing import Optional
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.distributions.distribution import Distribution
 from torch.distributions.multivariate_normal import MultivariateNormal
 
 from .utils import log_standard_normal
+from models.distributions import factory
 
 
 def cov_rotation(cov: np.ndarray, angle_rad: float) -> np.ndarray:
@@ -19,7 +18,8 @@ def cov_rotation(cov: np.ndarray, angle_rad: float) -> np.ndarray:
     return rotation_matrix @ cov @ rotation_matrix.T
 
 
-class Prior:
+@factory.register_builder("SingleGaussian")
+class BasePrior:
     def __init__(self, latent_dim: int, sample_num: int = 256):
         super().__init__()
         self.latent_dim = latent_dim
@@ -41,7 +41,8 @@ class Prior:
         return log_standard_normal(z)
 
 
-class GaussianMultivariateMixture2D:
+@factory.register_builder("GaussianMultivariateMixture2D")
+class GaussianMultivariateMixture2D(BasePrior):
 
     def __init__(
         self,
