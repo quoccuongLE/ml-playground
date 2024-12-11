@@ -13,4 +13,4 @@ lr = 1e-3 / math.sqrt(multiplier)
 epochs = 120
 # 90 - 134
 # 120 - 133
-weight_path = "tmp/weights/vae_120.pth"
+weight_path = "./vae_120.pth"

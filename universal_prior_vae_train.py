@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from torch.optim import Adam
+from torch.optim import Adam, Adamax
 
-from models.vae import Encoder, Decoder, VariationalAutoEncoder as VAE
+from models.experimental.vae import VAE
 from datasets.mnist import train_loader
 
 from configs.vae_config import (
@@ -15,47 +15,47 @@ from configs.vae_config import (
     train_batch_size,
 )
 
+
+torch.manual_seed(999)
 # Model Hyperparameters
+
+sampling = True
+latent_sample_num = 128
+if sampling:
+    weight_path = f"tmp/weights/vae_universal_prior_120_L{latent_sample_num}.pth"
+else:
+    latent_sample_num = -1
+    weight_path = f"tmp/weights/vae_universal_prior_120_L1.pth"
+
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")
 
 # Model definition
-encoder = Encoder(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
-decoder = Decoder(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim)
-model = VAE(encoder=encoder, decoder=decoder, device=device).to(device)
+encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, latent_dim=latent_dim, depth=3)
+decoder = dict(latent_dim=latent_dim, hidden_dim=hidden_dim, output_dim=x_dim, depth=3)
+model = VAE(
+    encoder=encoder,
+    decoder=decoder,
+    device=device,
+    latent_dim=latent_dim,
+    latent_sample_num=latent_sample_num,
+).to(device)
 
-
-# Loss function
-# https://statproofbook.github.io/P/mvn-dent
-def loss_function(x, x_hat, mean, log_var):
-    reconstruction_loss = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-    KLD = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
-
-    return reconstruction_loss + KLD
-
-
-optimizer = Adam(model.parameters(), lr=lr)
-
+optimizer = Adamax(model.parameters(), lr=lr)
 print("Start training VAE...")
 model.train()
-
-# Train loop
 for epoch in range(epochs):
     overall_loss = 0
     for batch_idx, (x, y) in enumerate(train_loader):
         x = x.view(train_batch_size, x_dim)
         x = x.to(device)
+        loss = model(x, mode="train", sampling=sampling)
+        overall_loss += loss.item() / train_loader.batch_size
+        print(loss.item())
 
         optimizer.zero_grad()
-
-        x_hat, mean, log_var = model(x)
-        loss = loss_function(x, x_hat, mean, log_var)
-
-        overall_loss += loss.item() / train_loader.batch_size
-
         loss.backward()
         optimizer.step()
-    # scheduler.step()
 
     print(
         "\tEpoch",
