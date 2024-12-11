@@ -103,7 +103,7 @@ class GaussianMultivariateMixture2D:
         res = []
         for label in labels:
             res.append(self.gaussians[int(label)].sample(torch.Size([1])))
-        return torch.stack(res)
+        return torch.stack(res).to(self._device)
 
     def log_prob(self, x: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
         num_samples = x.shape[0]

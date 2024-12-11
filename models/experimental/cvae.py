@@ -87,3 +87,8 @@ class CVAE(VAE):
                 return (1 - self.beta) * RE + self.beta * KL
         else:
             return x_hat, mean, log_var
+
+    def sample(self, labels: torch.Tensor):
+        z = self.prior.sample(labels=labels)
+        # return self.decoder.sample(z)
+        return self.decoder(z)

@@ -19,8 +19,8 @@ from configs.vae_config import (
 # Model Hyperparameters
 sampling = True
 latent_sample_num = 256
-beta = 0.9
-weight_path = f"tmp/weights/uni_cvae_120_b{beta}.pth"
+beta = 0.8
+weight_path = f"tmp/weights/uni_cvae_120_b{int(beta*100)}.pth"
 
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn as nn
 from torchvision.utils import save_image
 from tqdm import tqdm
 
@@ -16,7 +17,8 @@ from torch.utils.data import DataLoader
 from models.experimental.cvae import CVAE
 
 batch_size = 1
-weight_path = "tmp/weights/uni_cvae_120_b_90.pth"
+beta = 0.9
+weight_path = f"tmp/weights/uni_cvae_120_b{int(beta*100)}.pth"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -36,10 +38,15 @@ def plot_latent(
         if i > num_batches:
             break
     plt.colorbar()
-    plt.savefig("latent_embeddings_cvae_case2_b99.png")
+    plt.savefig("latent_embeddings_cvae_case2_b80.png")
 
 
-def plot_reconstructed(autoencoder, r0=(-5, 10), r1=(-10, 5), n=12):
+def plot_reconstructed(
+    autoencoder: nn.Module,
+    r0: tuple[float] = (-5, 10),
+    r1: tuple[float] = (-10, 5),
+    n: int = 12,
+):
     w = 28
     img = np.zeros((n * w, n * w))
     for i, y in enumerate(np.linspace(*r1, n)):
@@ -73,4 +80,9 @@ model.to(torch.device(device))
 model.eval()
 
 # Latent embeddings
-plot_latent(model, test_loader)
+# plot_latent(model, test_loader)
+labels = torch.tensor([8]).to(torch.int64).cuda()
+generated_images = model.sample(labels=labels)
+save_image(
+    generated_images.view(batch_size, 1, 28, 28), "tmp/generated_sample_cvae_001.png"
+)
