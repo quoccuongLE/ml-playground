@@ -22,28 +22,57 @@ class Discriminator(nn.Module):
             self._layers.append(nn.LeakyReLU(0.2))
 
         self.linear_relu_stack = nn.Sequential(*self._layers)
+        self.output_proj = nn.Linear(hidden_dim, 2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        pass
+        x = self.linear_relu_stack(x)
+        return torch.sigmoid(self.output_proj(x))
 
 
-class AdversiaralAutoEncoder(VariationalAutoEncoder):
+class AdversiaralAutoEncoder:
 
     def __init__(
         self,
-        encoder: Union[nn.Module, dict],
-        decoder: Union[nn.Module, dict],
+        autoencoder: Union[nn.Module, dict],
+        discriminator: Union[nn.Module, dict],
         prior: Union[nn.Module, dict],
         device: str,
-        latent_dim: Optional[int] = None,
+        latent_dim: int = 2,
         latent_sample_num: int = 128,
         beta: float = 0.5,
     ):
-        super().__init__(encoder, decoder, device, latent_dim, latent_sample_num, beta)
+        self.autoencoder: VariationalAutoEncoder = None
+        if isinstance(autoencoder, dict):
+            self.autoencoder = VariationalAutoEncoder(
+                encoder=autoencoder["encoder"],
+                decoder=autoencoder["decoder"],
+                device=device,
+                latent_dim=latent_dim,
+                latent_sample_num=latent_sample_num,
+                beta=beta,
+            )
+        else:
+            self.autoencoder = autoencoder
+
         self.prior: BasePrior = None
         if isinstance(prior, dict):
-            self.prior = prior_factory.build(prior)
+            self.prior = prior_factory.build(prior, latent_dim=latent_dim, device=device)
         else:
             self.prior = prior
 
-        self.discriminator = None
+        self.discriminator: nn.Module = None
+        if isinstance(discriminator, dict):
+            self.discriminator = Discriminator(
+                input_dim=latent_dim,
+                hidden_dim=discriminator["hidden_dim"],
+                depth=discriminator["depth"],
+            )
+        else:
+            self.discriminator = discriminator
+
+    def loss(self, x: torch.Tensor):
+        pass
+
+    def sample(self, labels: torch.Tensor):
+        z = self.prior.sample(labels=labels)
+        return self.decoder(z)

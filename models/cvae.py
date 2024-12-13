@@ -50,7 +50,6 @@ class CVAE(VariationalAutoEncoder):
         self,
         x: torch.Tensor,
         y: torch.Tensor,
-        reduction: str = "sum",
         mode: str = "train",
         sampling: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
