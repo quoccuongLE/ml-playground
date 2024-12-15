@@ -186,7 +186,7 @@ class VariationalAutoEncoder(nn.Module):
         encoder: Union[nn.Module, dict],
         decoder: Union[nn.Module, dict],
         device: str,
-        latent_dim: Optional[int] = None,
+        latent_dim: int,
         latent_sample_num: int = 128,
         beta: float = 0.5
     ):
@@ -201,7 +201,7 @@ class VariationalAutoEncoder(nn.Module):
             self.encoder = Encoder(
                 input_dim=encoder["input_dim"],
                 hidden_dim=encoder["hidden_dim"],
-                latent_dim=encoder["latent_dim"],
+                latent_dim=latent_dim,
                 depth=encoder["depth"],
             )
         else:
@@ -210,7 +210,7 @@ class VariationalAutoEncoder(nn.Module):
             self.decoder = decoder
         elif isinstance(decoder, dict):
             self.decoder = Decoder(
-                latent_dim=decoder["latent_dim"],
+                latent_dim=latent_dim,
                 hidden_dim=decoder["hidden_dim"],
                 output_dim=decoder["output_dim"],
                 depth=decoder["depth"],

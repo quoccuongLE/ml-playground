@@ -5,6 +5,7 @@ from torch.distributions.distribution import Distribution
 from torch.distributions.multivariate_normal import MultivariateNormal
 
 from .utils import log_standard_normal
+from models.params import ConfigParams
 from models.distributions import factory
 
 
@@ -21,7 +22,6 @@ def cov_rotation(cov: np.ndarray, angle_rad: float) -> np.ndarray:
 @factory.register_builder("SingleGaussian")
 class BasePrior:
     def __init__(self, latent_dim: int, sample_num: int = 256):
-        super().__init__()
         self.latent_dim = latent_dim
         self.sample_num = sample_num
 
@@ -41,7 +41,6 @@ class BasePrior:
         return log_standard_normal(z)
 
 
-@factory.register_builder("GaussianMultivariateMixture2D")
 class GaussianMultivariateMixture2D(BasePrior):
 
     def __init__(
@@ -53,7 +52,6 @@ class GaussianMultivariateMixture2D(BasePrior):
         sigma_2: Optional[float] = None,
         device: str = "cpu",
     ):
-        super().__init__()
         assert (
             latent_dim == 2
         ), "This is a 2D Multivariate Gaussian Mixture, the latent dimension must be equal to 2"
@@ -111,7 +109,7 @@ class GaussianMultivariateMixture2D(BasePrior):
         batch_size = x.shape[1]
         assert x.shape[-2] == label.shape[0]
         mean = self._mean[label].repeat(num_samples, 1, 1)
-        inv = self._inv[label].repeat(num_samples, 1,  1, 1)
+        inv = self._inv[label].repeat(num_samples, 1, 1, 1)
 
         x_m_mean = x[:, :, None, :] - mean[:, :, None, :]
 
@@ -120,8 +118,22 @@ class GaussianMultivariateMixture2D(BasePrior):
         # ).reshape(num_samples, batch_size, self.latent_dim)
 
         # log_prob = -0.5 * x_m_mean * torch.matmul(inv, x_m_mean.transpose(1,2)).transpose(1,2)
-        log_prob = -0.5 * (x_m_mean * torch.matmul(x_m_mean, inv)).squeeze(dim=2)  # log_prob = -130.7499
+        log_prob = -0.5 * (x_m_mean * torch.matmul(x_m_mean, inv)).squeeze(
+            dim=2
+        )  # log_prob = -130.7499
         log_prob -= 0.5 * self.latent_dim * torch.log(torch.tensor(2.0 * torch.pi))
         log_prob -= 0.5 * torch.log(self._det[label])[None, :, None]
 
         return log_prob
+
+
+@factory.register_builder("GaussianMultivariateMixture2D")
+def build_gmm2d(config: ConfigParams, **kwargs):
+    return GaussianMultivariateMixture2D(
+        # latent_dim=config["latent_dim"],
+        num_classes=config["num_classes"],
+        radius=config["radius"],
+        sigma_1=config["sigma_1"],
+        sigma_2=config["sigma_2"],
+        **kwargs
+    )

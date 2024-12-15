@@ -1,6 +1,7 @@
 from typing import Optional, Union
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .distributions.prior import BasePrior
 from .distributions import factory as prior_factory
@@ -22,11 +23,18 @@ class Discriminator(nn.Module):
             self._layers.append(nn.LeakyReLU(0.2))
 
         self.linear_relu_stack = nn.Sequential(*self._layers)
-        self.output_proj = nn.Linear(hidden_dim, 2)
+        self.output_proj = nn.Linear(hidden_dim, 1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, with_logits: bool = False) -> torch.Tensor:
         x = self.linear_relu_stack(x)
-        return torch.sigmoid(self.output_proj(x))
+        if with_logits:
+            return torch.sigmoid(self.output_proj(x))
+        else:
+            return self.output_proj(x)
+
+    def loss(self, x: torch.Tensor, labels: torch.Tensor, reduction: str = "sum"):
+        preds = self.forward(x)
+        return F.binary_cross_entropy_with_logits(preds.squeeze(), labels, reduction=reduction)
 
 
 class AdversiaralAutoEncoder:
@@ -56,7 +64,7 @@ class AdversiaralAutoEncoder:
 
         self.prior: BasePrior = None
         if isinstance(prior, dict):
-            self.prior = prior_factory.build(prior, latent_dim=latent_dim, device=device)
+            self.prior = prior_factory.build(prior, name=prior["type"], latent_dim=latent_dim, device=device)
         else:
             self.prior = prior
 
@@ -69,6 +77,18 @@ class AdversiaralAutoEncoder:
             )
         else:
             self.discriminator = discriminator
+
+    def to(self, device: str):
+        self.autoencoder.to(device)
+        self.discriminator.to(device)
+
+    def train(self):
+        self.autoencoder.train()
+        self.discriminator.train()
+
+    def eval(self):
+        self.autoencoder.eval()
+        self.discriminator.eval()
 
     def loss(self, x: torch.Tensor):
         pass

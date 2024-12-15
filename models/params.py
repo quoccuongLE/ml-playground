@@ -1,11 +1,12 @@
 import copy
+from typing import Union
 
 from pydantic import BaseModel, Field
 
 
 class ConfigParams(BaseModel, extra="allow"):
 
-    def override(self, override_dict: dict | BaseModel):
+    def override(self, override_dict: Union[dict, BaseModel]):
         """The implementation of `override`."""
         for k, v in override_dict.items():
             if k not in self.__dict__.keys():

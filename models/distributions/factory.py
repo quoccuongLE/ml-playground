@@ -1,3 +1,4 @@
+from typing import Optional
 from models import registry
 from models.params import ConfigParams
 
@@ -19,7 +20,7 @@ def register_builder(key: str):
     return registry.register(_REGISTERED_PRIOR_CLS, key)
 
 
-def build(config: ConfigParams, name: str | None = None, **kwargs):
+def build(config: ConfigParams, name: Optional[str] = None, **kwargs):
     builder = registry.lookup(_REGISTERED_PRIOR_CLS, name or config.type)
     return builder(config=config, **kwargs)
 
