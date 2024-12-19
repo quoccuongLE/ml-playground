@@ -1,5 +1,5 @@
+import random
 import torch
-import torch.nn as nn
 from torch.optim import Adam
 
 from models.aae import AdversiaralAutoEncoder as AAE
@@ -15,8 +15,12 @@ from configs.aae_config import (
     beta1
 )
 
-ae_weight_path = f"tmp/weights/aae_ae_e{num_epochs}.pth"
-discriminator_weight_path = f"tmp/weights/aae_discriminator_e{num_epochs}.pth"
+num_epochs = 1000
+seed = random.randint(0, 999)
+torch.manual_seed(seed)
+
+ae_weight_path = f"tmp/weights/aae_ae_test_e{num_epochs}_s{seed}.pth"
+discriminator_weight_path = f"tmp/weights/aae_discriminator_test_e{num_epochs}_s{seed}.pth"
 
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")
@@ -45,6 +49,7 @@ real_label = 1.0
 fake_label = 0.0
 
 print("Starting Training Loop...")
+print(f"Seed = {seed}")
 model.train()
 
 G_losses = []
@@ -62,11 +67,11 @@ for epoch in range(num_epochs):
         ############################
         # (1) Reconstruction - Update encoder and decoder
         ###########################
-        model.autoencoder.zero_grad()
-        x_hat, z_mean, log_z_var = model.autoencoder(x, mode=None)
-        errR = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-        errR.backward()
-        optimizerR.step()
+        # model.autoencoder.zero_grad()
+        # x_hat, z_mean, log_z_var = model.autoencoder(x, mode=None)
+        # errR = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
+        # errR.backward()
+        # optimizerR.step()
 
         ############################
         # (2a) Regulalization - Update D network: maximize log(D(x)) + log(1 - D(Enc(z)))
@@ -100,14 +105,14 @@ for epoch in range(num_epochs):
         errG = model.discriminator.loss(z, label)
         optimizerG.step()
 
-        batch_errR = errR.item() / train_batch_size
+        # batch_errR = errR.item() / train_batch_size
         batch_errD = errD.item() / train_batch_size
         batch_errG = errG.item() / train_batch_size
-        overall_R_loss += batch_errR
+        # overall_R_loss += batch_errR
         overall_D_loss += batch_errD
         overall_G_loss += batch_errG
         # Save Losses for plotting later
-        R_losses.append(batch_errR)
+        # R_losses.append(batch_errR)
         D_losses.append(batch_errD)
         G_losses.append(batch_errG)
 

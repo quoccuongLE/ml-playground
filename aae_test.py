@@ -9,8 +9,10 @@ from configs.aae_config import x_dim, hidden_dim, latent_dim, test_batch_size
 
 from utils import plot_latent
 
-ae_weight_path = "tmp/weights/aae_ae_e120.pth"
-discriminator_weight_path = "tmp/weights/aae_discriminator_e120.pth"
+
+num_epochs = 95
+ae_weight_path = f"tmp/weights/aae_ae_e{num_epochs}.pth"
+discriminator_weight_path = f"tmp/weights/aae_discriminator_e{num_epochs}.pth"
 
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")
@@ -46,5 +48,5 @@ plot_latent(
     test_batch_size=test_batch_size,
     data_loader=test_loader,
     x_dim=x_dim,
-    save_img_path="latent_aae_gmm2d.png",
+    save_img_path="latent_aae_gmm2d_e120.png",
 )
