@@ -9,7 +9,7 @@ x_dim = 784 # 28*28
 hidden_dim = 1024
 latent_dim = 2
 depth = 3
-epochs = 1000
+epochs = 2000
 # 90 - 134
 # 120 - 133
 weight_path = "./aae_120.pth"

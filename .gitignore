@@ -167,3 +167,4 @@ tmp/
 .vscode/
 
 log_*.txt
+log/*.txt
