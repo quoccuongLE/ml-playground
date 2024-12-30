@@ -2,7 +2,7 @@ import math
 
 dataset_path = "~/datasets"
 batch_size_ref = 128
-multiplier = 4
+multiplier = 8
 train_batch_size = batch_size_ref * multiplier
 test_batch_size = 128
 x_dim = 784 # 28*28

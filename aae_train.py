@@ -1,20 +1,26 @@
-import fire
+from datetime import datetime
 import random
+from pathlib import Path
+import logging
+
+import fire
 import torch
+import torch.nn as nn
 from torch.optim import Adam
 
-from models.aae import AdversiaralAutoEncoder as AAE
-from datasets.mnist import train_loader
-
+from configs.aae_config import beta1
+from configs.aae_config import epochs as NUM_EPOCHS
 from configs.aae_config import (
-    x_dim,
     hidden_dim,
     latent_dim,
     lr,
-    epochs as NUM_EPOCHS,
+    test_batch_size,
     train_batch_size,
-    beta1,
+    x_dim,
 )
+from datasets.mnist import test_loader, train_loader
+from models.aae import AdversiaralAutoEncoder as AAE
+from utils import plot_latent
 
 
 def save_model(model, ae_weight_path: str, discriminator_weight_path: str):
@@ -22,15 +28,30 @@ def save_model(model, ae_weight_path: str, discriminator_weight_path: str):
     torch.save(model.discriminator.state_dict(), discriminator_weight_path)
 
 
-def main(num_epochs: int = NUM_EPOCHS, seed: int = -1, skip_rate_G: int = 3):
+def main(
+    num_epochs: int = NUM_EPOCHS,
+    seed: int = -1,
+    skip_rate_G: int = 1,
+    epoch_checkpoint_rate: int = 50,
+    embedding_capture_rate: int = 5,
+):
     if seed == -1:
         seed = random.randint(0, 999)
     torch.manual_seed(seed)
 
-    ae_weight_path = f"tmp/weights/aae_ae_test_e{num_epochs}_s{seed}.pth"
-    discriminator_weight_path = (
-        f"tmp/weights/aae_discriminator_test_e{num_epochs}_s{seed}.pth"
+    weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/s{seed}")
+    weight_dir.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename=weight_dir
+        / f"aae_train_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.log",
     )
+
+    ae_weight_path = weight_dir / f"ae_e{num_epochs}.pth"
+    discriminator_weight_path = weight_dir / f"discriminator_e{num_epochs}.pth"
 
     cuda = True
     device = torch.device("cuda" if cuda else "cpu")
@@ -57,7 +78,9 @@ def main(num_epochs: int = NUM_EPOCHS, seed: int = -1, skip_rate_G: int = 3):
 
     optimizerD = Adam(model.discriminator.parameters(), lr=lr, betas=(beta1, 0.999))
     optimizerR = Adam(model.autoencoder.parameters(), lr=lr, betas=(beta1, 0.999))
-    optimizerG = Adam(model.autoencoder.encoder.parameters(), lr=lr, betas=(beta1, 0.999))
+    optimizerG = Adam(
+        model.autoencoder.encoder.parameters(), lr=lr, betas=(beta1, 0.999)
+    )
     # optimizerR = Adam(model.autoencoder.decoder.parameters(), lr=lr, betas=(beta1, 0.999))
 
     # Establish convention for real and fake labels during training
@@ -73,7 +96,9 @@ def main(num_epochs: int = NUM_EPOCHS, seed: int = -1, skip_rate_G: int = 3):
     D_losses = []
     R_losses = []
 
-    label = torch.full((train_batch_size,), fake_label, dtype=torch.float, device=device)
+    label = torch.full(
+        (train_batch_size,), fake_label, dtype=torch.float, device=device
+    )
 
     for epoch in range(num_epochs):
         overall_R_loss, overall_D_loss, overall_G_loss = 0, 0, 0
@@ -84,32 +109,46 @@ def main(num_epochs: int = NUM_EPOCHS, seed: int = -1, skip_rate_G: int = 3):
             ############################
             # (1) Reconstruction - Update encoder and decoder
             ###########################
-            # model.autoencoder.zero_grad()
-            # x_hat, z_mean, log_z_var = model.autoencoder(x, mode=None)
-            # errR = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-            # errR.backward()
-            # optimizerR.step()
+            model.autoencoder.zero_grad()
+            x_hat, z_mean, log_z_var = model.autoencoder(x, mode=None)
+            errR = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
+            errR.backward()
+            optimizerR.step()
 
             ############################
             # (2a) Regulalization - Update D network: maximize log(D(x)) + log(1 - D(Enc(z)))
             ###########################
             ## Train with all-real latent distribution
-            # optimizerD.zero_grad() # The same for the line below
+            # # optimizerD.zero_grad() # The same for the line below
+            # model.discriminator.zero_grad()
+            # z_mean, log_z_var = model.autoencoder.encoder(x)
+            # label.fill_(real_label)
+            # errD_real = model.discriminator.loss(z_mean, label)
+            # # errD_real.backward()
+
+            # ## Train with all-fake batch
+            # z_prior_samples = model.prior.sample(labels=y)
+            # label.fill_(fake_label)
+            # errD_fake = model.discriminator.loss(z_prior_samples, label)
+            # # errD_fake.backward()
+
+            # real_labels = torch.full(
+            #     (train_batch_size,), real_label, dtype=torch.float, device=device
+            # )
+            # fake_labels = torch.full(
+            #     (train_batch_size,), fake_label, dtype=torch.float, device=device
+            # )
             model.discriminator.zero_grad()
             z_mean, log_z_var = model.autoencoder.encoder(x)
-            label.fill_(real_label)
-            errD_real = model.discriminator.loss(z_mean, label)
-            errD_real.backward()
-
-            ## Train with all-fake batch
-            z_prior_samples = model.prior.sample(labels=y)
-            label.fill_(fake_label)
-            errD_fake = model.discriminator.loss(z_prior_samples, label)
-            errD_fake.backward()
-
-            errD = errD_real + errD_fake
+            z_prior_samples = model.prior.sample(labels=y).squeeze()
+            real_labels = torch.ones(train_batch_size, device=device)
+            fake_labels = torch.zeros(train_batch_size, device=device)
+            z = torch.cat((z_mean, z_prior_samples), dim=0)
+            labels = torch.cat((real_labels, fake_labels), dim=0)
+            errD = model.discriminator.loss(z, labels)
+            errD.backward()
             optimizerD.step()
-            batch_errD = errD.item() / train_batch_size
+            batch_errD = errD.item() / train_batch_size / 2
 
             if batch_idx % skip_rate_G == 0:
                 ############################
@@ -125,42 +164,44 @@ def main(num_epochs: int = NUM_EPOCHS, seed: int = -1, skip_rate_G: int = 3):
                 errG.backward()
                 optimizerG.step()
                 batch_errG = errG.item() / train_batch_size
-            # ############################
-            # # (2b) Regulalization - Update Generator G Network (a.k.a. Encoder)
-            # ###########################
-            # model.autoencoder.encoder.zero_grad()
-            # # z_mean, log_z_var = model.autoencoder.encoder(x)
-            # z = model.autoencoder.encoder.reparameterization(
-            #     mean=z_mean, log_var=log_z_var, sample_num=-1
-            # )
-            # label.fill_(real_label)
-            # errG = model.discriminator.loss(z, label)
-            # optimizerG.step()
 
-            # batch_errR = errR.item() / train_batch_size
-            # overall_R_loss += batch_errR
+            batch_errR = errR.item() / train_batch_size
+            overall_R_loss += batch_errR
             overall_D_loss += batch_errD
             overall_G_loss += batch_errG
             # Save Losses for plotting later
-            # R_losses.append(batch_errR)
+            R_losses.append(batch_errR)
             D_losses.append(batch_errD)
             G_losses.append(batch_errG)
 
-            # Output training stats
-        if epoch % 5 == 0:
+        # Output training stats
+        if epoch % epoch_checkpoint_rate == 0:
             mark_string = f"[{epoch:d}/{num_epochs:d}]"
-            losses_string = f"\tloss_R: {overall_R_loss / (batch_idx + 1):.4f} | loss_D: {overall_D_loss / (batch_idx + 1):.4f} | loss_G: {overall_G_loss / (batch_idx // skip_rate_G + 1):.4f}"
+            losses_string = f"\tloss_R: {overall_R_loss / (batch_idx + 1):.4f} |"
+            losses_string += f" loss_D: {overall_D_loss / (batch_idx + 1):.4f} |"
+            losses_string += f" loss_G: {overall_G_loss / (batch_idx + 1):.4f}"
             print(f"{mark_string}{losses_string}")
-            # if epoch in [510, 515, 520]:
-            #     save_model(
-            #         model=model,
-            #         ae_weight_path=f"tmp/weights/aae_ae_test_e{epoch}_s{seed}.pth",
-            #         discriminator_weight_path=f"tmp/weights/aae_discriminator_test_e{epoch}_s{seed}.pth",
-            #     )
+            logging.info(f"{mark_string}{losses_string}")
+            save_model(
+                model=model,
+                ae_weight_path=weight_dir / f"ae_e{epoch}.pth",
+                discriminator_weight_path=weight_dir / f"discriminator_e{epoch}.pth",
+            )
+        if epoch % embedding_capture_rate == 0:
+            plot_latent(
+                autoencoder=model.autoencoder,
+                test_batch_size=test_batch_size,
+                data_loader=test_loader,
+                x_dim=x_dim,
+                save_img_path=weight_dir / f"latent_e{epoch}.png",
+            )
 
     print("Finish!!")
+    logging.info("Finish!!")
+    logging.info(f"Seed = {seed}")
     torch.save(model.autoencoder.state_dict(), ae_weight_path)
     torch.save(model.discriminator.state_dict(), discriminator_weight_path)
+
 
 if __name__ == "__main__":
     fire.Fire(main)

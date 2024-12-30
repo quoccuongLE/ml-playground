@@ -19,17 +19,19 @@ def plot_latent(
     device: str = "cuda:0",
     save_img_path: str = "latent_embeddings_cvae_case2_b80.png",
 ):
-    for i, (x, y) in enumerate(data_loader):
-        x = x.view(test_batch_size, x_dim)
-        x = x.to(device)
-        # enc_label = F.one_hot(y, num_classes=num_classes)
-        z = autoencoder.encoder(x)
-        z = z[0].to("cpu").detach().numpy()
-        plt.scatter(z[:, 0], z[:, 1], c=y, cmap="tab10")
-        if i > num_batches:
-            break
-    plt.colorbar()
-    plt.savefig(save_img_path)
+    with torch.no_grad():
+        # autoencoder.eval()
+        for i, (x, y) in enumerate(data_loader):
+            x = x.view(test_batch_size, x_dim)
+            x = x.to(device)
+            # enc_label = F.one_hot(y, num_classes=num_classes)
+            z = autoencoder.encoder(x)
+            z = z[0].to("cpu").detach().numpy()
+            plt.scatter(z[:, 0], z[:, 1], c=y, cmap="tab10")
+            if i > num_batches:
+                break
+        plt.colorbar()
+        plt.savefig(save_img_path)
 
 
 def plot_reconstructed(

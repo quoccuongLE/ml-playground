@@ -1,3 +1,4 @@
+from pathlib import Path
 import torch
 import torch.nn as nn
 from torch.optim import Adam
@@ -11,9 +12,14 @@ from utils import plot_latent
 
 
 num_epochs = 2000
-seed = 731
-ae_weight_path = f"tmp/weights/aae_ae_test_e{num_epochs}_s{seed}.pth"
-discriminator_weight_path = f"tmp/weights/aae_discriminator_test_e{num_epochs}_s{seed}.pth"
+seed = 563
+epoch = 15
+
+weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/s{seed}")
+weight_dir.mkdir(parents=True, exist_ok=True)
+
+ae_weight_path = weight_dir / f"ae_e{epoch}.pth"
+discriminator_weight_path = weight_dir / f"discriminator_e{epoch}.pth"
 
 cuda = True
 device = torch.device("cuda" if cuda else "cpu")
@@ -49,5 +55,5 @@ plot_latent(
     test_batch_size=test_batch_size,
     data_loader=test_loader,
     x_dim=x_dim,
-    save_img_path=f"latent_aae_gmm2d_e{num_epochs}_s{seed}.png",
+    save_img_path=f"latent_aae_gmm2d_e{epoch}_s{seed}.png",
 )
