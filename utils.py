@@ -20,7 +20,7 @@ def plot_latent(
     save_img_path: str = "latent_embeddings_cvae_case2_b80.png",
 ):
     with torch.no_grad():
-        # autoencoder.eval()
+        plt.clf()
         for i, (x, y) in enumerate(data_loader):
             x = x.view(test_batch_size, x_dim)
             x = x.to(device)

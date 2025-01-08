@@ -15,8 +15,8 @@ epochs = 2000
 weight_path = "./aae_120.pth"
 
 # Learning rate for optimizers
-lr = 0.0002
-# lr = 1e-3 / math.sqrt(multiplier)
+# lr = 0.0002
+lr = 1e-4 / math.sqrt(multiplier)
 
 # Beta1 hyperparameter for Adam optimizers
 beta1 = 0.5
