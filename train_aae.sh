@@ -6,3 +6,4 @@ current_date=$(date +"%Y-%m-%d_%H:%M:%S")
 python aae_train.py > log/log_aae_train_$current_date.txt &
 
 # python aae_train.py --seed 906
+# python aae_conditional_train.py --num_epochs 100 > log/dev_$current_date.txt

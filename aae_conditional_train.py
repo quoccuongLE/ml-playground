@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 import random
 from pathlib import Path
 import logging
@@ -9,6 +10,8 @@ import fire
 import torch
 import torch.nn as nn
 from torch.optim import Adam
+
+import torch.nn.functional as F
 
 from configs.aae_config import beta1
 from configs.aae_config import epochs as NUM_EPOCHS
@@ -21,7 +24,7 @@ from configs.aae_config import (
     x_dim,
 )
 from datasets.mnist import test_loader, train_loader
-from models.aae import AdversarialAutoEncoder as AAE
+from models.aae import IncoporatedLabelAAE as AAE
 from utils import plot_latent
 
 
@@ -40,8 +43,10 @@ def main(
     if seed == -1:
         seed = random.randint(0, 999)
     torch.manual_seed(seed)
-
-    weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/s{seed}")
+    if os.environ.get("LAUNCH_MODE") == "debug":
+        weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/debug")
+    else:
+        weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/s{seed}")
     weight_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
@@ -57,12 +62,13 @@ def main(
 
     cuda = True
     device = torch.device("cuda" if cuda else "cpu")
+    num_classes = 10
 
     encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, depth=3)
     decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, depth=3)
     prior = dict(
         type="GaussianMultivariateMixture2D",
-        num_classes=10,
+        num_classes=num_classes,
         radius=2.0,
         sigma_1=2.0,
         sigma_2=0.1,
@@ -145,7 +151,7 @@ def main(
             fake_labels = torch.zeros(train_batch_size, device=device)
             z = torch.cat((z_mean, z_prior_samples), dim=0)
             labels = torch.cat((real_labels, fake_labels), dim=0)
-            errD = model.discriminator.loss(z, labels)
+            errD = model.discriminator_loss(x=z, y=torch.cat((y, y)), labels=labels)
             errD.backward()
             optimizerD.step()
             batch_errD = errD.item() / train_batch_size / 2
@@ -161,17 +167,20 @@ def main(
                 #     mean=z_mean, log_var=log_z_var, sample_num=-1
                 # )
                 # errG = model.discriminator.loss(z, label)
-                errG = model.discriminator.loss(z_mean, label)
+                # errG = model.discriminator.loss(z_mean, label)
+                errG = model.discriminator_loss(
+                    x=z_mean, y=y, labels=label
+                )
                 errG.backward()
                 optimizerG.step()
                 batch_errG = errG.item() / train_batch_size
 
-            # batch_errR = errR.item() / train_batch_size
-            # overall_R_loss += batch_errR
+            batch_errR = errR.item() / train_batch_size
+            overall_R_loss += batch_errR
             overall_D_loss += batch_errD
             overall_G_loss += batch_errG
             # Save Losses for plotting later
-            # R_losses.append(batch_errR)
+            R_losses.append(batch_errR)
             D_losses.append(batch_errD)
             G_losses.append(batch_errG)
 

@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 
-from models.aae import AdversiaralAutoEncoder as AAE
+from models.aae import AdversarialAutoEncoder as AAE
 from datasets.mnist import test_loader
 
 from configs.aae_config import x_dim, hidden_dim, latent_dim, test_batch_size

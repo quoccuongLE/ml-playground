@@ -34,10 +34,12 @@ class Discriminator(nn.Module):
 
     def loss(self, x: torch.Tensor, labels: torch.Tensor, reduction: str = "sum"):
         preds = self.forward(x)
-        return F.binary_cross_entropy_with_logits(preds.squeeze(), labels, reduction=reduction)
+        return F.binary_cross_entropy_with_logits(
+            preds.squeeze(), labels, reduction=reduction
+        )
 
 
-class AdversiaralAutoEncoder:
+class AdversarialAutoEncoder:
 
     def __init__(
         self,
@@ -49,6 +51,7 @@ class AdversiaralAutoEncoder:
         latent_sample_num: int = 128,
         beta: float = 0.5,
     ):
+        self.device = device
         self.autoencoder: VariationalAutoEncoder = None
         if isinstance(autoencoder, dict):
             self.autoencoder = VariationalAutoEncoder(
@@ -64,7 +67,9 @@ class AdversiaralAutoEncoder:
 
         self.prior: BasePrior = None
         if isinstance(prior, dict):
-            self.prior = prior_factory.build(prior, name=prior["type"], latent_dim=latent_dim, device=device)
+            self.prior = prior_factory.build(
+                prior, name=prior["type"], latent_dim=latent_dim, device=device
+            )
         else:
             self.prior = prior
 
@@ -96,3 +101,42 @@ class AdversiaralAutoEncoder:
     def sample(self, labels: torch.Tensor):
         z = self.prior.sample(labels=labels)
         return self.decoder(z)
+
+
+class IncoporatedLabelAAE(AdversarialAutoEncoder):
+
+    def __init__(
+        self,
+        autoencoder: Union[nn.Module, dict],
+        discriminator: Union[nn.Module, dict],
+        prior: Union[nn.Module, dict],
+        device: str,
+        num_classes: int = 10,
+        latent_dim: int = 2,
+        latent_sample_num: int = 128,
+        beta: float = 0.5,
+    ):
+        self.num_classes = num_classes
+        assert isinstance(discriminator, dict), "Discriminator must be a dictionary"
+        discriminator = Discriminator(
+            input_dim=latent_dim + num_classes,
+            hidden_dim=discriminator["hidden_dim"],
+            depth=discriminator["depth"],
+        )
+
+        super().__init__(
+            autoencoder=autoencoder,
+            discriminator=discriminator,
+            prior=prior,
+            device=device,
+            latent_dim=latent_dim,
+            latent_sample_num=latent_sample_num,
+            beta=beta,
+        )
+
+    def discriminator_loss(
+        self, x: torch.Tensor, y: torch.Tensor, labels: torch.Tensor
+    ) -> torch.Tensor:
+        dec_labels = F.one_hot(y, num_classes=self.num_classes).to(self.device)
+        x = torch.cat((x, dec_labels), dim=1)
+        return self.discriminator.loss(x=x, labels=labels)
