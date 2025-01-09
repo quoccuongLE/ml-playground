@@ -183,13 +183,10 @@ def main(
                 data_loader=test_loader,
                 x_dim=x_dim,
                 save_img_path=weight_dir / f"latent_e{epoch}.png",
-                buffer=buf
             )
             shutil.copyfile(
                 weight_dir / f"latent_e{epoch}.png", weight_dir / f"latent_latest.png"
             )
-            buf.seek(0)
-            frames.append(Image.open(buf))
 
         if epoch % epoch_checkpoint_rate == 0:
             save_model(
@@ -201,13 +198,6 @@ def main(
     print("Finish!!")
     logging.info("Finish!!")
     logging.info(f"Seed = {seed}")
-    frames[0].save(
-        weight_dir / f"latent_animation.gif",
-        save_all=True,
-        append_images=frames[1:],
-        duration=200,
-        loop=0,
-    )
 
     torch.save(model.autoencoder.state_dict(), ae_weight_path)
     torch.save(model.discriminator.state_dict(), discriminator_weight_path)
