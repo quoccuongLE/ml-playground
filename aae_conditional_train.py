@@ -1,29 +1,21 @@
-from datetime import datetime
+import io
+import logging
 import os
 import random
-from pathlib import Path
-import logging
-
-
 import shutil
+from datetime import datetime
+from pathlib import Path
+
 import fire
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
+from PIL import Image
 from torch.optim import Adam
 
-import torch.nn.functional as F
-
-from configs.aae_config import beta1
 from configs.aae_config import epochs as NUM_EPOCHS
-from configs.aae_config import (
-    hidden_dim,
-    latent_dim,
-    lr,
-    test_batch_size,
-    train_batch_size,
-    x_dim,
-)
-from datasets.mnist import test_loader, train_loader
+from configs.aae_config import (hidden_dim, latent_dim, lr, test_batch_size,
+                                train_batch_size, x_dim)
+from datasets.mnist import get_data_loader
 from models.aae import IncoporatedLabelAAE as AAE
 from utils import plot_latent
 
@@ -84,21 +76,17 @@ def main(
     )
     model.to(device=device)
 
-    # optimizerD = Adam(model.discriminator.parameters(), lr=lr, betas=(beta1, 0.999))
-    # optimizerR = Adam(model.autoencoder.parameters(), lr=lr, betas=(beta1, 0.999))
-    # optimizerG = Adam(model.autoencoder.encoder.parameters(), lr=lr, betas=(beta1, 0.999))
-    # optimizerR = Adam(model.autoencoder.decoder.parameters(), lr=lr, betas=(beta1, 0.999))
-
     optimizerD = Adam(model.discriminator.parameters(), lr=lr)
     optimizerR = Adam(model.autoencoder.parameters(), lr=lr)
     optimizerG = Adam(model.autoencoder.encoder.parameters(), lr=lr)
-    # optimizerR = Adam(model.autoencoder.decoder.parameters(), lr=lr)
 
     # Establish convention for real and fake labels during training
     real_label = 1.0
     fake_label = 0.0
     skip_rate_G = skip_rate_G
 
+    train_loader = get_data_loader(batch_size=train_batch_size, mode="train")
+    test_loader = get_data_loader(batch_size=test_batch_size, mode="test")
     print("Starting Training Loop...")
     print(f"Seed = {seed}")
     model.train()
@@ -111,6 +99,8 @@ def main(
         (train_batch_size,), fake_label, dtype=torch.float, device=device
     )
 
+    frames = []
+    buf = io.BytesIO()
     for epoch in range(num_epochs):
         overall_R_loss, overall_D_loss, overall_G_loss = 0, 0, 0
 
@@ -121,38 +111,40 @@ def main(
             # (1) Reconstruction - Update encoder and decoder
             ###########################
             model.autoencoder.zero_grad()
-            x_hat, z_mean, log_z_var = model.autoencoder(x, mode=None)
-            errR = nn.functional.binary_cross_entropy(x_hat, x, reduction="sum")
-            errR.backward()
+            x_hat, z_mean, _ = model.autoencoder(x, mode=None)
+            errR = F.binary_cross_entropy(x_hat, x, reduction="sum")
+            errR.backward(retain_graph=True)
             optimizerR.step()
 
             ############################
             # (2a) Regulalization - Update D network: maximize log(D(x)) + log(1 - D(Enc(z)))
             ###########################
-            ## Train with all-real latent distribution
+            ## Train with all-generated latent distribution
             # optimizerD.zero_grad() # The same for the line below
-            # model.discriminator.zero_grad()
-            # z_mean, log_z_var = model.autoencoder.encoder(x)
-            # label.fill_(real_label)
-            # errD_real = model.discriminator.loss(z_mean, label)
-            # errD_real.backward()
-
-            # ## Train with all-fake batch
-            # z_prior_samples = model.prior.sample(labels=y)
-            # label.fill_(fake_label)
-            # errD_fake = model.discriminator.loss(z_prior_samples, label)
-            # errD_fake.backward()
-            # errD = errD_real + errD_fake
-
             model.discriminator.zero_grad()
-            z_mean, log_z_var = model.autoencoder.encoder(x)
+            with torch.no_grad():
+                z_mean, _ = model.autoencoder.encoder(x)
+            label.fill_(fake_label)
+            errD_fake = model.discriminator_loss(z_mean, y, label)
+            errD_fake.backward()
+
+            ## Train with all-true prior latent distribution
             z_prior_samples = model.prior.sample(labels=y).squeeze()
-            real_labels = torch.ones(train_batch_size, device=device)
-            fake_labels = torch.zeros(train_batch_size, device=device)
-            z = torch.cat((z_mean, z_prior_samples), dim=0)
-            labels = torch.cat((real_labels, fake_labels), dim=0)
-            errD = model.discriminator_loss(x=z, y=torch.cat((y, y)), labels=labels)
-            errD.backward()
+            label.fill_(real_label)
+            errD_real = model.discriminator_loss(z_prior_samples, y, label)
+            errD_real.backward()
+            errD = errD_real + errD_fake
+
+            # model.discriminator.zero_grad()
+            # with torch.no_grad():
+            #     z_mean, _ = model.autoencoder.encoder(x)
+            # z_prior_samples = model.prior.sample(labels=y).squeeze()
+            # real_labels = torch.ones(train_batch_size, device=device)
+            # fake_labels = torch.zeros(train_batch_size, device=device)
+            # z = torch.cat((z_mean, z_prior_samples), dim=0)
+            # labels = torch.cat((fake_labels, real_labels), dim=0)
+            # errD = model.discriminator_loss(x=z, y=torch.cat((y, y)), labels=labels)
+            # errD.backward()
             optimizerD.step()
             batch_errD = errD.item() / train_batch_size / 2
 
@@ -162,15 +154,8 @@ def main(
                 ###########################
                 model.autoencoder.encoder.zero_grad()
                 label.fill_(real_label)
-                z_mean, log_z_var = model.autoencoder.encoder(x)
-                # z = model.autoencoder.encoder.reparameterization(
-                #     mean=z_mean, log_var=log_z_var, sample_num=-1
-                # )
-                # errG = model.discriminator.loss(z, label)
-                # errG = model.discriminator.loss(z_mean, label)
-                errG = model.discriminator_loss(
-                    x=z_mean, y=y, labels=label
-                )
+                z_mean, _ = model.autoencoder.encoder(x)
+                errG = model.discriminator_loss(x=z_mean, y=y, labels=label)
                 errG.backward()
                 optimizerG.step()
                 batch_errG = errG.item() / train_batch_size
@@ -198,10 +183,13 @@ def main(
                 data_loader=test_loader,
                 x_dim=x_dim,
                 save_img_path=weight_dir / f"latent_e{epoch}.png",
+                buffer=buf
             )
             shutil.copyfile(
                 weight_dir / f"latent_e{epoch}.png", weight_dir / f"latent_latest.png"
             )
+            buf.seek(0)
+            frames.append(Image.open(buf))
 
         if epoch % epoch_checkpoint_rate == 0:
             save_model(
@@ -213,6 +201,14 @@ def main(
     print("Finish!!")
     logging.info("Finish!!")
     logging.info(f"Seed = {seed}")
+    frames[0].save(
+        weight_dir / f"latent_animation.gif",
+        save_all=True,
+        append_images=frames[1:],
+        duration=200,
+        loop=0,
+    )
+
     torch.save(model.autoencoder.state_dict(), ae_weight_path)
     torch.save(model.discriminator.state_dict(), discriminator_weight_path)
 

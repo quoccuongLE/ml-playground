@@ -18,6 +18,7 @@ def plot_latent(
     test_batch_size: int = 1,
     device: str = "cuda:0",
     save_img_path: str = "latent_embeddings_cvae_case2_b80.png",
+    buffer = None
 ):
     with torch.no_grad():
         plt.clf()
@@ -27,11 +28,15 @@ def plot_latent(
             # enc_label = F.one_hot(y, num_classes=num_classes)
             z = autoencoder.encoder(x)
             z = z[0].to("cpu").detach().numpy()
-            plt.scatter(z[:, 0], z[:, 1], c=y, cmap="tab10")
+            s = [1 for _ in range(len(x))]
+            plt.scatter(z[:, 0], z[:, 1], c=y, cmap="tab10", s=s)
             if i > num_batches:
                 break
         plt.colorbar()
         plt.savefig(save_img_path)
+        if buffer:
+            plt.savefig(buffer, format="png")
+            buffer.seek(0)
 
 
 def plot_reconstructed(

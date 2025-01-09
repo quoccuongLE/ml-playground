@@ -2,7 +2,7 @@ import math
 
 dataset_path = "~/datasets"
 batch_size_ref = 128
-multiplier = 1
+multiplier = 8
 train_batch_size = batch_size_ref * multiplier
 test_batch_size = 128
 x_dim = 784 # 28*28
@@ -15,8 +15,8 @@ epochs = 100
 weight_path = "./aae_120.pth"
 
 # Learning rate for optimizers
-lr = 0.001
-# lr = 1e-4 / math.sqrt(multiplier)
+# lr = 0.001
+lr = 1e-3 / math.sqrt(multiplier)
 
 # Beta1 hyperparameter for Adam optimizers
 beta1 = 0.5
