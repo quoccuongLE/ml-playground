@@ -127,6 +127,35 @@ class GaussianMultivariateMixture2D(BasePrior):
         return log_prob
 
 
+class SwissRoll(BasePrior):
+
+    def __init__(
+        self,
+        num_classes: int = 10,
+        beta: float = 0.2,
+        base_length: float = 2.0,
+        device: str = "cpu",
+        **kwargs
+    ):
+        self._device = device
+        k = np.arange(0, num_classes + 1)
+        self.beta = beta
+        self.L = base_length
+        self.alpha = torch.from_numpy(np.sqrt(2 * base_length * k / beta))
+        delta = np.asarray(
+            [self.alpha[i + 1] - self.alpha[i] for i in range(num_classes)]
+        )
+        self.delta = torch.from_numpy(delta)
+
+    def sample(self, labels: torch.Tensor, noise: float = 0.0) -> torch.Tensor:
+        t = torch.rand(len(labels)) * self.delta[labels] + self.alpha[labels]
+        x = t * torch.cos(t)
+        y = t * torch.sin(t)
+        X = torch.stack((x, y)).T
+        X += noise * torch.randn(*X.shape)
+        return X.to(torch.float32).to(self._device)
+
+
 @factory.register_builder("GaussianMultivariateMixture2D")
 def build_gmm2d(config: ConfigParams, **kwargs):
     return GaussianMultivariateMixture2D(
@@ -135,5 +164,15 @@ def build_gmm2d(config: ConfigParams, **kwargs):
         radius=config["radius"],
         sigma_1=config["sigma_1"],
         sigma_2=config["sigma_2"],
+        **kwargs
+    )
+
+
+@factory.register_builder("SwissRoll")
+def build_swiss_roll(config: ConfigParams, **kwargs):
+    return SwissRoll(
+        num_classes=config["num_classes"],
+        beta=config["beta"],
+        base_length=config["base_length"],
         **kwargs
     )

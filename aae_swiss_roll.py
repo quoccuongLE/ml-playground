@@ -36,9 +36,9 @@ def main(
         seed = random.randint(0, 999)
     torch.manual_seed(seed)
     if os.environ.get("LAUNCH_MODE") == "debug":
-        weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/debug")
+        weight_dir = Path(f"tmp/weights/aae_swiss_roll/e{num_epochs}/debug")
     else:
-        weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/s{seed}")
+        weight_dir = Path(f"tmp/weights/aae_swiss_roll/e{num_epochs}/s{seed}")
     weight_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
@@ -58,13 +58,15 @@ def main(
 
     encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, depth=3)
     decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, depth=3)
-    prior = dict(
-        type="GaussianMultivariateMixture2D",
-        num_classes=num_classes,
-        radius=2.0,
-        sigma_1=2.0,
-        sigma_2=0.1,
-    )
+    # prior = dict(
+    #     type="GaussianMultivariateMixture2D",
+    #     num_classes=num_classes,
+    #     radius=2.0,
+    #     sigma_1=2.0,
+    #     sigma_2=0.1,
+    # )
+
+    prior = dict(type="SwissRoll", num_classes=num_classes, beta=0.2, base_length=2.0)
     autoencoder = dict(encoder=encoder, decoder=decoder)
     discriminator = dict(hidden_dim=hidden_dim, depth=3)
     model: AAE = AAE(
