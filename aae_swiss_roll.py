@@ -101,6 +101,7 @@ def main(
         (train_batch_size,), fake_label, dtype=torch.float, device=device
     )
 
+    batch_errD, batch_errR, batch_errG = 10.0, 10.0, 10.0
     for epoch in range(num_epochs):
         overall_R_loss, overall_D_loss, overall_G_loss = 0, 0, 0
 
@@ -116,37 +117,38 @@ def main(
             errR.backward(retain_graph=True)
             optimizerR.step()
 
-            ############################
-            # (2a) Regulalization - Update D network: maximize log(D(x)) + log(1 - D(Enc(z)))
-            ###########################
-            ## Train with all-generated latent distribution
-            # optimizerD.zero_grad() # The same for the line below
-            model.discriminator.zero_grad()
-            with torch.no_grad():
-                z_mean, _ = model.autoencoder.encoder(x)
-            label.fill_(fake_label)
-            errD_fake = model.discriminator_loss(z_mean, y, label)
-            errD_fake.backward()
+            if batch_errD > 0.3 or epoch < 50:
+                ############################
+                # (2a) Regulalization - Update D network: maximize log(D(x)) + log(1 - D(Enc(z)))
+                ###########################
+                ## Train with all-generated latent distribution
+                # optimizerD.zero_grad() # The same for the line below
+                model.discriminator.zero_grad()
+                with torch.no_grad():
+                    z_mean, _ = model.autoencoder.encoder(x)
+                label.fill_(fake_label)
+                errD_fake = model.discriminator_loss(z_mean, y, label)
+                errD_fake.backward()
 
-            ## Train with all-true prior latent distribution
-            z_prior_samples = model.prior.sample(labels=y).squeeze()
-            label.fill_(real_label)
-            errD_real = model.discriminator_loss(z_prior_samples, y, label)
-            errD_real.backward()
-            errD = errD_real + errD_fake
+                ## Train with all-true prior latent distribution
+                z_prior_samples = model.prior.sample(labels=y).squeeze()
+                label.fill_(real_label)
+                errD_real = model.discriminator_loss(z_prior_samples, y, label)
+                errD_real.backward()
+                errD = errD_real + errD_fake
 
-            # model.discriminator.zero_grad()
-            # with torch.no_grad():
-            #     z_mean, _ = model.autoencoder.encoder(x)
-            # z_prior_samples = model.prior.sample(labels=y).squeeze()
-            # real_labels = torch.ones(train_batch_size, device=device)
-            # fake_labels = torch.zeros(train_batch_size, device=device)
-            # z = torch.cat((z_mean, z_prior_samples), dim=0)
-            # labels = torch.cat((fake_labels, real_labels), dim=0)
-            # errD = model.discriminator_loss(x=z, y=torch.cat((y, y)), labels=labels)
-            # errD.backward()
-            optimizerD.step()
-            batch_errD = errD.item() / train_batch_size / 2
+                # model.discriminator.zero_grad()
+                # with torch.no_grad():
+                #     z_mean, _ = model.autoencoder.encoder(x)
+                # z_prior_samples = model.prior.sample(labels=y).squeeze()
+                # real_labels = torch.ones(train_batch_size, device=device)
+                # fake_labels = torch.zeros(train_batch_size, device=device)
+                # z = torch.cat((z_mean, z_prior_samples), dim=0)
+                # labels = torch.cat((fake_labels, real_labels), dim=0)
+                # errD = model.discriminator_loss(x=z, y=torch.cat((y, y)), labels=labels)
+                # errD.backward()
+                optimizerD.step()
+                batch_errD = errD.item() / train_batch_size / 2
 
             if batch_idx % skip_rate_G == 0:
                 ############################
