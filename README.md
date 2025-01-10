@@ -1,5 +1,6 @@
 # Machine Learning Playground
-A collection of ML code playground
+
+Some of my implementation of several ML papers (VAE, AAE)
 
 ## Setup environment
 
@@ -9,7 +10,7 @@ Run the bash script ```setup.sh``` to install python packages via conda.
 
 ### Implementation
 
-This repository contains several implementations of VAE
+This repository contains my implementations of VAE
 
 1. Standard implementation with a reduced loss form in the original paper [[paper]](https://arxiv.org/abs/1312.6114)
 
