@@ -34,3 +34,21 @@ test_loader = DataLoader(
     drop_last=True,
     **kwargs
 )
+
+
+def get_data_loader(
+    batch_size: int,
+    mode: str = "train",
+    shuffle: bool = True,
+    drop_last: bool = True,
+    num_workers: int = 1,
+    pin_memory: bool = True,
+):
+    return DataLoader(
+        dataset=train_dataset if mode == "train" else test_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=drop_last,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )

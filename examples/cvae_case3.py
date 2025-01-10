@@ -1,3 +1,4 @@
+from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -43,8 +44,8 @@ def plot_latent(
 
 def plot_reconstructed(
     autoencoder: nn.Module,
-    r0: tuple[float] = (-5, 10),
-    r1: tuple[float] = (-10, 5),
+    r0: Tuple[float] = (-5, 10),
+    r1: Tuple[float] = (-10, 5),
     n: int = 12,
 ):
     w = 28

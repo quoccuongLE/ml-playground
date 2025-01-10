@@ -165,3 +165,6 @@ cython_debug/
 .env
 tmp/
 .vscode/
+
+log_*.txt
+log/*.txt

@@ -1,12 +1,12 @@
-import math
 from typing import Optional
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.distributions.distribution import Distribution
 from torch.distributions.multivariate_normal import MultivariateNormal
 
 from .utils import log_standard_normal
+from models.params import ConfigParams
+from models.distributions import factory
 
 
 def cov_rotation(cov: np.ndarray, angle_rad: float) -> np.ndarray:
@@ -19,9 +19,9 @@ def cov_rotation(cov: np.ndarray, angle_rad: float) -> np.ndarray:
     return rotation_matrix @ cov @ rotation_matrix.T
 
 
-class Prior:
+@factory.register_builder("SingleGaussian")
+class BasePrior:
     def __init__(self, latent_dim: int, sample_num: int = 256):
-        super().__init__()
         self.latent_dim = latent_dim
         self.sample_num = sample_num
 
@@ -41,7 +41,7 @@ class Prior:
         return log_standard_normal(z)
 
 
-class GaussianMultivariateMixture2D:
+class GaussianMultivariateMixture2D(BasePrior):
 
     def __init__(
         self,
@@ -52,7 +52,6 @@ class GaussianMultivariateMixture2D:
         sigma_2: Optional[float] = None,
         device: str = "cpu",
     ):
-        super().__init__()
         assert (
             latent_dim == 2
         ), "This is a 2D Multivariate Gaussian Mixture, the latent dimension must be equal to 2"
@@ -110,7 +109,7 @@ class GaussianMultivariateMixture2D:
         batch_size = x.shape[1]
         assert x.shape[-2] == label.shape[0]
         mean = self._mean[label].repeat(num_samples, 1, 1)
-        inv = self._inv[label].repeat(num_samples, 1,  1, 1)
+        inv = self._inv[label].repeat(num_samples, 1, 1, 1)
 
         x_m_mean = x[:, :, None, :] - mean[:, :, None, :]
 
@@ -119,8 +118,61 @@ class GaussianMultivariateMixture2D:
         # ).reshape(num_samples, batch_size, self.latent_dim)
 
         # log_prob = -0.5 * x_m_mean * torch.matmul(inv, x_m_mean.transpose(1,2)).transpose(1,2)
-        log_prob = -0.5 * (x_m_mean * torch.matmul(x_m_mean, inv)).squeeze(dim=2)  # log_prob = -130.7499
+        log_prob = -0.5 * (x_m_mean * torch.matmul(x_m_mean, inv)).squeeze(
+            dim=2
+        )  # log_prob = -130.7499
         log_prob -= 0.5 * self.latent_dim * torch.log(torch.tensor(2.0 * torch.pi))
         log_prob -= 0.5 * torch.log(self._det[label])[None, :, None]
 
         return log_prob
+
+
+class SwissRoll(BasePrior):
+
+    def __init__(
+        self,
+        num_classes: int = 10,
+        beta: float = 0.2,
+        base_length: float = 2.0,
+        device: str = "cpu",
+        **kwargs
+    ):
+        self._device = device
+        k = np.arange(0, num_classes + 1)
+        self.beta = beta
+        self.L = base_length
+        self.alpha = torch.from_numpy(np.sqrt(2 * base_length * k / beta))
+        delta = np.asarray(
+            [self.alpha[i + 1] - self.alpha[i] for i in range(num_classes)]
+        )
+        self.delta = torch.from_numpy(delta)
+
+    def sample(self, labels: torch.Tensor, noise: float = 0.0) -> torch.Tensor:
+        t = torch.rand(len(labels)) * self.delta[labels] + self.alpha[labels]
+        x = t * torch.cos(t)
+        y = t * torch.sin(t)
+        X = torch.stack((x, y)).T
+        X += noise * torch.randn(*X.shape)
+        return X.to(torch.float32).to(self._device)
+
+
+@factory.register_builder("GaussianMultivariateMixture2D")
+def build_gmm2d(config: ConfigParams, **kwargs):
+    return GaussianMultivariateMixture2D(
+        # latent_dim=config["latent_dim"],
+        num_classes=config["num_classes"],
+        radius=config["radius"],
+        sigma_1=config["sigma_1"],
+        sigma_2=config["sigma_2"],
+        **kwargs
+    )
+
+
+@factory.register_builder("SwissRoll")
+def build_swiss_roll(config: ConfigParams, **kwargs):
+    return SwissRoll(
+        num_classes=config["num_classes"],
+        beta=config["beta"],
+        base_length=config["base_length"],
+        **kwargs
+    )
