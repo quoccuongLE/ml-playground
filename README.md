@@ -2,6 +2,10 @@
 
 My reimplementation of several ML papers (VAE, AAE)
 
+## Datasets
+
+The dataset MNIST is used for all experiments.
+
 ## Setup environment
 
 Run the bash script ```setup.sh``` to install python packages via conda.
@@ -56,7 +60,7 @@ To launch training code for the experiments in the paper,
 
 ```bash
 python aae_incoporating_label_train.py --prior gmm # 10 GMM 2D distribution
-python aae_incoporating_label_train.py --prior swiss_rol # Swiss roll distribution
+python aae_incoporating_label_train.py --prior swiss_roll # Swiss roll distribution
 ```
 
 ### Experimental results
