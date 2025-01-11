@@ -81,9 +81,9 @@ model.to(torch.device(device))
 model.eval()
 
 # Latent embeddings
-# plot_latent(model, test_loader)
-labels = torch.tensor([8]).to(torch.int64).cuda()
-generated_images = model.sample(labels=labels)
-save_image(
-    generated_images.view(batch_size, 1, 28, 28), "generated_sample_cvae_001.png"
-)
+plot_latent(model, test_loader)
+# labels = torch.tensor([8]).to(torch.int64).cuda()
+# generated_images = model.sample(labels=labels)
+# save_image(
+#     generated_images.view(batch_size, 1, 28, 28), "generated_sample_cvae_001.png"
+# )

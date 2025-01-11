@@ -26,19 +26,21 @@ def save_model(model, ae_weight_path: str, discriminator_weight_path: str):
 
 
 def main(
+    prior: str = "gmm",
     num_epochs: int = NUM_EPOCHS,
     seed: int = -1,
     skip_rate_G: int = 1,
     epoch_checkpoint_rate: int = 100,
     save_stats_interval: int = 5,
+    device: str = "cuda"
 ):
     if seed == -1:
         seed = random.randint(0, 999)
     torch.manual_seed(seed)
     if os.environ.get("LAUNCH_MODE") == "debug":
-        weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/debug")
+        weight_dir = Path(f"tmp/weights/aae/{prior}/e{num_epochs}/debug")
     else:
-        weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/s{seed}")
+        weight_dir = Path(f"tmp/weights/aae/{prior}/e{num_epochs}/s{seed}")
     weight_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
@@ -52,19 +54,23 @@ def main(
     ae_weight_path = weight_dir / f"ae_e{num_epochs}.pth"
     discriminator_weight_path = weight_dir / f"discriminator_e{num_epochs}.pth"
 
-    cuda = True
-    device = torch.device("cuda" if cuda else "cpu")
+    device = torch.device(device)
     num_classes = 10
 
     encoder = dict(input_dim=x_dim, hidden_dim=hidden_dim, depth=3)
     decoder = dict(output_dim=x_dim, hidden_dim=hidden_dim, depth=3)
-    prior = dict(
-        type="GaussianMultivariateMixture2D",
-        num_classes=num_classes,
-        radius=2.0,
-        sigma_1=2.0,
-        sigma_2=0.1,
-    )
+    if prior == "gmm":
+        prior = dict(
+            type="GaussianMultivariateMixture2D",
+            num_classes=num_classes,
+            radius=2.0,
+            sigma_1=2.0,
+            sigma_2=0.1,
+        )
+    elif prior == "swiss_roll":
+        prior = dict(
+            type="SwissRoll", num_classes=num_classes, beta=0.2, base_length=2.0
+        )
     autoencoder = dict(encoder=encoder, decoder=decoder)
     discriminator = dict(hidden_dim=hidden_dim, depth=3)
     model: AAE = AAE(
@@ -111,7 +117,7 @@ def main(
             model.autoencoder.zero_grad()
             x_hat, z_mean, _ = model.autoencoder(x, mode=None)
             errR = F.binary_cross_entropy(x_hat, x, reduction="sum")
-            errR.backward(retain_graph=True)
+            errR.backward()
             optimizerR.step()
 
             ############################

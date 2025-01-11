@@ -6,7 +6,7 @@ from PIL import Image
 
 
 def main(num_epochs: int, seed: int):
-    weight_dir = Path(f"tmp/weights/aae_swiss_roll/e{num_epochs}/s{seed}")
+    weight_dir = Path(f"tmp/weights/aae/e{num_epochs}/s{seed}")
     frames = []
     images = sorted(
         weight_dir.glob("latent_e*.png"), key=lambda path: int(path.stem.rsplit("_e", 1)[1])
@@ -22,8 +22,8 @@ def main(num_epochs: int, seed: int):
         str(output),
         save_all=True,
         append_images=frames[1:],
-        duration=200,
-        loop=0,
+        duration=500,
+        loop=1,
     )
 
 

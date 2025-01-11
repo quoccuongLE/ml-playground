@@ -50,16 +50,18 @@ class SwissRoll:
 
 
 # Generate a Swiss roll with 1000 samples and some noise
-n_samples = 1000
+n_samples = 500
 noise = 0.5
-X = generate_swiss_roll(n_samples, noise)
+# X = generate_swiss_roll(n_samples, noise)
 
-Y = np.concatenate([x*np.ones(100).astype(int) for x in range(10)])
+Y = np.concatenate([x * np.ones(n_samples).astype(int) for x in range(10)])
 swiss_roll = SwissRoll()
-X = swiss_roll.generate_arc(Y, noise=0.5)
+X = swiss_roll.generate_arc(Y, noise=noise)
 
 # Visualize the Swiss roll
 fig = plt.figure()
-plt.scatter(X[:, 0], X[:, 1], c=Y, s=10, cmap="tab10", alpha=0.5)
+plt.scatter(X[:, 0], X[:, 1], c=Y, s=1, cmap="tab10")
+plt.axis("equal")
+plt.colorbar()
 plt.title("Swiss Roll")
 plt.savefig("swiss_roll.png")
